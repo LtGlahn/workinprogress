@@ -14,7 +14,12 @@ if not [ k for k in sys.path if 'nvdbapi' in k]:
     print( "Legger NVDB api til søkestien")
     # sys.path.append( '../nvdbapi-V2' )
     
-    dir_path = os.getcwd().split(sep='\\')
+    if sys.platform == 'linux': 
+        mysep = '/'
+    else: 
+        mysep = '\\'
+    
+    dir_path = os.getcwd().split(sep=mysep)
     dir_path[-1] = 'nvdbapi-V2'
     sys.path.append( '/'.join(dir_path ))
 
