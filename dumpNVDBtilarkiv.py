@@ -45,9 +45,15 @@ for counter, objtype in enumerate(datatypes):
         f.write( '[\n')
 
         while ettobj: 
-            jsonstring = json.dumps(ettobj, ensure_ascii=False)            
+            nesteobj = sok.nesteForekomst()
+            jsonstring = json.dumps(ettobj, ensure_ascii=False)
+            
+            # Legger på komma hvis det finnes flere objekter. 
+            if nesteobj: 
+                jsonstring += ','
             f.write( jsonstring + '\n')   
-            ettobj = sok.nesteForekomst()
+            
+            ettobj = nesteobj
                 
         f.write( ']\n')
         f.close()
