@@ -34,9 +34,9 @@ datatypes = [ 60, 65, 64, 147, 625, 66, 62, 581, 67, 447, 69, 448 ]
 
 
 
-for objtype in datatypes: 
+for counter, objtype in enumerate(datatypes): 
     fname = outputdir + '/nvdb' + str(objtype) + '.json'
-    print( 'Henter objekttype: ', str(objtype))
+    print( 'Henter objekttype: ', str(objtype), '(', str(counter+1), 'av', str(len(datatypes)), 'obj.typer)')
     
     sok = nvdbapi.nvdbFagdata( objtype)
     ettobj = sok.nesteForekomst()
@@ -56,6 +56,6 @@ for objtype in datatypes:
         dakat = sok.anrope( 'vegobjekttyper/' + str( objtype) )
         with open( outputdir + '/dakat' + str(objtype) + '.json', 'w', encoding='utf-8') as f2: 
             json.dump( dakat, f2, ensure_ascii=False, indent=4)
-        print( 'Lagret obj.type', str(objtype), 'med', sok.antall, 'forekomster')
+        print( '\tLagret obj.type', str(objtype), dakat['navn'], 'med', sok.antall, 'forekomster')
     else: 
         print( 'Fikk ingen objekter for obj.type', ettobj)
