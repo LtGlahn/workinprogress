@@ -8,6 +8,7 @@ Rutiner for å lagre unna NVDB-informasjon til riksarkivet
 """
 
 import json 
+import datetime 
 
 import STARTHER
 import nvdbapi 
@@ -32,8 +33,9 @@ datatypes = [ 45 ]
 
 datatypes = [ 60, 65, 64, 147, 625, 66, 62, 581, 67, 447, 69, 448 ]
 
+datatypes = [532]
 
-
+t0 = datetime.datetime.now()
 for counter, objtype in enumerate(datatypes): 
     fname = outputdir + '/nvdb' + str(objtype) + '.json'
     print( 'Henter objekttype: ', str(objtype), '(', str(counter+1), 'av', str(len(datatypes)), 'obj.typer)')
@@ -65,3 +67,5 @@ for counter, objtype in enumerate(datatypes):
         print( '\tLagret obj.type', str(objtype), dakat['navn'], 'med', sok.antall, 'forekomster')
     else: 
         print( 'Fikk ingen objekter for obj.type', ettobj)
+        
+t1 = datetime.datetime.now()
