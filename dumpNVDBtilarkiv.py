@@ -33,7 +33,9 @@ datatypes = [ 45 ]
 
 datatypes = [ 60, 65, 64, 147, 625, 66, 62, 581, 67, 447, 69, 448 ]
 
-datatypes = [532]
+# datatypes = [532]
+# Vegreferanse har 1.362.958 forekomster
+# som lastes ned på ca 40 minutter. Blir ca 6.78 Gb ukomprimert. 
 
 t0 = datetime.datetime.now()
 for counter, objtype in enumerate(datatypes): 

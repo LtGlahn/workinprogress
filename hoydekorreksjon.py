@@ -16,7 +16,7 @@ import shapely.geometry
 import shapely.wkt
 import numpy as np
 import pdb
-from proj_wrapper import Proj, coord, PJ
+# from proj_wrapper import Proj, coord, PJ
 
 
 def regnutnyhoyde( mytuple, dato):
@@ -37,9 +37,9 @@ def regnutnyhoyde( mytuple, dato):
     datotall = float( s[0]) + float( s[1])/12
     proj_str = "+proj=pipeline +step +proj=utm +zone=33 +ellps=GRS80 +inv +step +proj=vgridshift " + \
     "+grids=/home/jajens/myproj/href/href2008a.gtx +inv +step +proj=utm +zone=33 +ellps=GRS80"
-    p = Proj(proj_str)
-    c1 = coord( mytuple[0], mytuple[1], mytuple[2], datotall)
-    r1 = p.trans(c1)
+#    p = Proj(proj_str)
+#    c1 = coord( mytuple[0], mytuple[1], mytuple[2], datotall)
+#    r1 = p.trans(c1)
     diff = r1.xyz.z - c1.xyz.z 
     return( (mytuple[0], mytuple[1], mytuple[2]-diff ) )
 
@@ -269,7 +269,7 @@ def formulergeometri( gammelgeom, nywkt ):
 
 
     
-def sjekkellipsoidehoyde(mittobj, egengeomtype): 
+def sjekkellipsoidehoyde(mittobj, egengeomtype, maksdiff=17): 
     """Sammenligner egengeometri med vegnett og finner GROVE feil i høyde
     
     Args: 
@@ -277,6 +277,9 @@ def sjekkellipsoidehoyde(mittobj, egengeomtype):
         egengeomtype (list of int, text) ID eller navn på egengeometri-egenskap
             Kan være mer enn én. 
     
+    Keywords: 
+        maksdiff int/float: default 17. Grense for maks. høydeforskjell
+        
     Returns: 
         True | False 
         
@@ -309,13 +312,14 @@ def sjekkellipsoidehoyde(mittobj, egengeomtype):
         if egen_wkt: 
             egengeom = wkt2numpyarr( egen_wkt )
             
-            if len( egengeom[0]) == 3: 
+            if len( egengeom[0]) == 3 and len( vegnettgeom[0]) == 3: 
             
                 dz_median = np.median( egengeom[:,2] ) - np.median( vegnettgeom[:,2])
                 if dz_median > hoydediff : 
                     feilhoyde = True
                 
-                print( "Høydedifferanse", dz_median )
+                return dz_median
+                # print( "Høydedifferanse", dz_median )
 
     return feilhoyde
     
@@ -361,4 +365,31 @@ def wkt2numpyarr( wktstring):
     else: 
         print( "Kan ikke dekode WKT strengen", wktstring[0:15])
         
+
+def sjekkfagdata( nvdbSokeobjekt, geometrityper=['Geometri, punkt'], maksdiff=17 ): 
+    """Finner de som man minstenker har GPS høyde i egengeometri
     
+    
+    Args: 
+        nvdbSokeobjekt _ fagdata søk mot nvdb api, fra github.com/ltglahn/nvdbapi-v2
+    
+    """
+    
+    mylist = []
+    feat = nvdbSokeobjekt.nesteForekomst()
+    
+    while feat: 
+        
+        hoydediff = sjekkellipsoidehoyde( feat, geometrityper, maksdiff=17)
+        if hoydediff: 
+            mylist.append( { 'hoydediff' : hoydediff, 
+                            'vegref' : feat['lokasjon']['vegreferanser'][0]['kortform'],
+                            'nvdbid' : feat['id'], 
+                            'fylke' : feat['lokasjon']['fylker'][0], 
+                            'kommune' : feat['lokasjon']['kommuner'][0], 
+                            'objekttype' : feat['metadata']['type']['navn']}  )
+        
+        
+        feat = nvdbSokeobjekt.nesteForekomst()
+        
+    return mylist
