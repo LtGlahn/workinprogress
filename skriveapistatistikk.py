@@ -3,7 +3,7 @@ import skrivnvdb
 import pandas as pd
 
 
-def hentendringssett( apiskrivforbindelse, filnavn='test.csv', sokestreng='geosum', antall = 1000): 
+def hentendringssett( apiskrivforbindelse, filnavn='test.csv', sokestreng='geosum', antall = 1000, stopp = False): 
     url = 'https://www.vegvesen.no/nvdb/apiskriv/rest/v3/endringssett'
     myparams = { 'max' : antall, 'skip' : 0, 'reverse' : 'false', 'userOrClient' : sokestreng } 
     
@@ -19,10 +19,15 @@ def hentendringssett( apiskrivforbindelse, filnavn='test.csv', sokestreng='geosu
         if iterasjon == 0: 
             antallTotalt = r0['antallTotalt']
     
+        if stopp: 
+            
+            return r0 
+            
+    
         for rad in r0['endringssett']: 
             minrad = dict( id=rad['id'], datakatalogversjon=rad['datakatalogversjon'], 
                             mottatt=rad['status']['mottatt'], fremdrift=rad['status']['fremdrift'], 
-                            eier=rad['status']['eier'], klient=rad['status']['eier'], apiversjon=rad['status']['apiversjon'], 
+                            eier=rad['status']['eier'], klient=rad['status']['klient'], apiversjon=rad['status']['apiversjon'], 
                             oppdragId=''
                              ) 
             if 'oppdragId' in rad['status']['transaksjon'].keys():
