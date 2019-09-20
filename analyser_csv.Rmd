@@ -54,8 +54,12 @@ Totalt `r nrow(dfsvv)` endringssett med 6-bokstav ident registrert i apiskriv PR
 
 ```{r}
 myplot3 <- ggplot( dfsvv ) + aes( x = format( dfsvv$dato, "%m")) + geom_bar() 
-myplot3 + labs(  x = 'Antall endringssett SVV-ansatte SINUS.infra per mnd')
+myplot3 + labs(  x = 'Antall endringssett SVV-ansatte SINUS.infra per mnd i 2019')
 
+```
+
+```{r}
+ggplot( dfsvv ) + aes( x = format( dfsvv$dato, "%W")) + geom_bar()  + labs(  x = 'Antall endringssett SVV-ansatte SINUS.infra per uke i 2019')
 ```
 
 
