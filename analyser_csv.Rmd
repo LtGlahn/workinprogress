@@ -10,6 +10,7 @@ output:
 
 Jeg har [python-kode](https://github.com/LtGlahn/workinprogress/blob/master/skriveapistatistikk.py) som henter oversikt over alle endringssett med "SINUS" i navn på klient eller eier fra NVDB skriveApi, og lagrer dette som CSV. Her er en analyse av disse dataene.
 
+Først hvilke klienter som har "SINUS" i navnet sitt: 
 ```{r,message=FALSE}
 library(lubridate)
 library( ggplot2)
@@ -22,11 +23,12 @@ df$dato <- lubridate::floor_date( lubridate::as_date(df$mottatt) )
 df$eierlengde <- nchar( as.character( df$eier )) 
 dfsvv <- droplevels( subset( df, eierlengde == 6) ) 
 
+data.frame(summary( df$klient ))
 ```
 
 # Alle endringssett fra SINUS.infra
 
-Alle endringssett som NVDB skriveAPi PROD har mottatt fra SINUS.infra, totalt `r nrow(df)` 
+Alle endringssett som NVDB skriveAPi PROD har mottatt fra SINUS, totalt `r nrow(df)` 
 
 
 ```{r}
