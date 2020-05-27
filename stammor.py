@@ -1,5 +1,6 @@
 from copy import deepcopy
 from datetime import datetime 
+import re
 
 import pandas as pd 
 import geopandas as gpd 
@@ -198,22 +199,53 @@ def berikfamilietre( gronnnslekt ):
     buskfelt_areal = 0
     blomst_areal = 0 
 
+    # Spesialvarianter som summerer basert på om det finnes tekst med "Klippes 2 ganger" i egenskapen "tilleggsinformasjon"
+    grasbakke_areal_2x = 0
+    grasplen_areal_2x = 0
+
+    # Spesialvarianter som summerer basert på om det finnes tekst med "Klippes 4 ganger" i egenskapen "tilleggsinformasjon"
+    grasbakke_areal_4x = 0
+    grasplen_areal_4x = 0
+
+
     # Teller areal grasbakker av typen "Grasplen" og "Grasbakke"
     typeid = 15
     if typeid in gronnnslekt.keys() and 'objekter' in gronnnslekt[typeid].keys():
         for grasdekke in gronnnslekt[typeid]['objekter']: 
 
+            klippetekst = 'tomtekst'
+            if 'Tilleggsinformasjon' in grasdekke.keys(): 
+                klippetekst = re.sub(r'\s+', '',  grasdekke['Tilleggsinformasjon'].lower() )  
+
             if 'Type' in grasdekke.keys() and 'Areal' in grasdekke.keys(): 
 
                 if grasdekke['Type'] == 'Grasbakke': 
                     grasbakke_areal += grasdekke['Areal']
+
+                    if 'klippes2ganger' in klippetekst: 
+                        grasbakke_areal_2x += grasdekke['Areal']
+                    elif 'klippes4ganger' in klippetekst: 
+                        grasbakke_areal_4x += grasdekke['Areal']
+
                 elif grasdekke['Type'] == 'Grasplen': 
                     grasplen_areal += grasdekke['Areal']
+
+                    if 'klippes2ganger' in klippetekst: 
+                        grasplen_areal_2x += grasdekke['Areal']
+                    elif 'klippes4ganger' in klippetekst: 
+                        grasplen_areal_4x += grasdekke['Areal']
+
+
                 else: 
                     print( 'Feil egenskapverdi "Type" for grasdekke', grasdekke['nvdbid'])
 
     gronnnslekt['stammor_egenskaper']['Grasplen areal m2'] =  grasplen_areal
     gronnnslekt['stammor_egenskaper']['Grasbakke areal m2'] =  grasbakke_areal
+
+    gronnnslekt['stammor_egenskaper']['Grasbakke 2x areal'] =  grasbakke_areal_2x
+    gronnnslekt['stammor_egenskaper']['Grasbakke 4x areal'] =  grasbakke_areal_4x
+    gronnnslekt['stammor_egenskaper']['Grasplen 2x areal'] =  grasplen_areal_2x
+    gronnnslekt['stammor_egenskaper']['Grasplen 4x areal'] =  grasplen_areal_4x
 
     # Teller antall trær
     typeid = 199
@@ -256,6 +288,8 @@ if __name__ == "__main__":
 
     familier = [ ]
 
+    t0 = datetime.now()
+
     gront = mittsok.nesteForekomst()
     count = 0
     while gront: 
@@ -271,3 +305,6 @@ if __name__ == "__main__":
         gront = mittsok.nesteForekomst()
 
     skog = familieskog( familier )
+
+    dt = datetime.now( ) - t0 
+    print( 'Kjøretid', dt.total_seconds() )
