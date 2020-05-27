@@ -68,6 +68,7 @@ def familietre( nvdbForekomst, relasjonstre = None  ):
 
         # Tar med vegsystemreferanse
         vegref = ','.join( [ vref['kortform'] for vref in  nvdbForekomst['lokasjon']['vegsystemreferanser']  ]  )
+        vegref = pyntvegref( vegref )
         egenskaper.update( {    'stammor_id'            : nvdbForekomst['id'],
                                 'stammor_type'          :  typeid, 
                                 'stammor_typenavn'      : nvdbForekomst['metadata']['type']['navn'], 
@@ -279,6 +280,59 @@ def berikfamilietre( gronnnslekt ):
 
     return gronnnslekt
 
+def pyntvegref( vegref):
+    """
+    Forenkler kommaseparert liste med vegsystemreferanser. Tilgrensende meterverdier slås sammen. 
+
+    For eksempel 'RV706 S1D1 m5846-5869,RV706 S1D1 m5869-5885' => 'RV706 S1D1 m5846-5885'
+    """
+
+    data = [ ]
+    resultat = [ ]
+    liste = vegref.split( ',')
+
+    # Trivielt tilfelle: Kun en forekomst
+    if len( liste ) <= 1: 
+        return vegref 
+
+    for segment in liste: 
+
+        
+        temp = segment.split( ) # Meterverdier = siste ord i vegsystemreferanse-teksten
+        temp2 = temp[-1].split( '-') # Splitter meterverdier. Merk at den første forekomsten har forstavelsen m
+        data.append( { 'anker' :  ' '.join( temp[:-1]), 'fra' : int( temp2[0][1:]), 'til' : int( temp2[1])  })
+
+    # Lagrer som dataframe, sorterer på ankerpunkt og fra-meter
+    mydf = pd.DataFrame(  data )
+    mydf.sort_values( [ 'anker', 'fra'], inplace=True )  
+
+
+    # Finner meterverdi og differanse for raden nedefor 
+    mydf['neste_fra'] = mydf['fra'].shift(-1)     
+    mydf['meterdiff'] = mydf['neste_fra'] - mydf['til']   
+
+    # Itererer over alle radene, samler opp inntil enten "anker"-verdien endres eller meterdiff > 0
+    # først må vi initialisere med data fra den første raden. 
+
+    anker = mydf.iloc[0, 0]
+    fra   = mydf.iloc[0, 1] 
+    til   = mydf.iloc[0, 2] 
+
+    for ix, row in mydf.iterrows():   
+        # Sjekker om betingelsene er tilstede for å slå sammen denne strekningen med foregående
+        # I så fall justerer vi til-meterverdien 
+        if row['meterdiff'] == 0 and row['anker'] == anker:  
+            til = row['til'] 
+        else: 
+            # Må legge fra oss det vi har slått sammen og gå videre med ny, ettersom vi har brudd i meterverdi og/eller ankerverdi
+            # Komponerer vegsystemreferanse med anker + den første fra-meterverdien og akkumulert til-meterverdi  
+            resultat.append( anker + ' m' + str( int(fra) ) + '-' + str( int( til)) ) 
+            # Starter med ny oppføring 
+            anker = row['anker'] 
+            fra = row['fra'] 
+            til = row['til'] 
+
+    return ','.join( resultat )
 
 
 if __name__ == "__main__":
@@ -307,4 +361,4 @@ if __name__ == "__main__":
     skog = familieskog( familier )
 
     dt = datetime.now( ) - t0 
-    print( 'Kjøretid', dt.total_seconds() )
+    print( 'Kjøretid', dt.total_seconds(), 'sekunder' )
