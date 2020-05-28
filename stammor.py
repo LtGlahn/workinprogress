@@ -1,3 +1,14 @@
+"""
+Konseptutvikling, presentasjon av relasjonstrær grøntanlegg (for driftskontrakter). 
+
+Lister ut alle vegobjekter i relasjonstreet under ["Grøntanlegg"](https://datakatalogen.vegdata.no/508-Gr%C3%B8ntanlegg) 
+med kobling til grøntanlegg-objektet. 
+
+Funksjoner for å lagre resultatene til geopackage. (Konvertering til excel er triviell og går kjappest med FME)
+
+Installasjon: Må ha dataFrames og GeoDataframes-bibliotekene pandas og geopandas. Shapely er inkludert i geopandas. 
+"""
+
 from copy import deepcopy
 from datetime import datetime 
 import re
@@ -9,14 +20,7 @@ from shapely import wkt
 import STARTHER
 import nvdbapiv3
 
-"""
-Konseptutvikling, presentasjon av relasjonstrær grøntanlegg (for driftskontrakter). 
 
-Lister ut alle vegobjekter i relasjonstreet under ["Grøntanlegg"](https://datakatalogen.vegdata.no/508-Gr%C3%B8ntanlegg) 
-med kobling til grøntanlegg-objektet. 
-
-Funksjoner for å lagre resultatene til geopackage. (Konvertering til excel er triviell og går kjappest med FME)
-"""
 
 
 def familietre( nvdbForekomst, relasjonstre = None  ): 
