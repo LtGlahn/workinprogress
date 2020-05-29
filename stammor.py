@@ -7,6 +7,10 @@ med kobling til grøntanlegg-objektet.
 Funksjoner for å lagre resultatene til geopackage. (Konvertering til excel er triviell og går kjappest med FME)
 
 Installasjon: Må ha dataFrames og GeoDataframes-bibliotekene pandas og geopandas. Shapely er inkludert i geopandas. 
+
+Dette er konseptutvikling og eksperimentering, og ikke optimalisert på noen som helst måte! F.eks. henter vi ett og ett 
+datterobjekt, og det går jo unødvendig tregt. Vi bruker ca 45 minutter på å hente data for grøntanlegg i Trøndelag 
+(655 grøntanlegg, 11810 objekter totalt i relasjonstrærne)
 """
 
 from copy import deepcopy
@@ -41,6 +45,11 @@ def familietre( nvdbForekomst, relasjonstre = None  ):
     Hvis egenskapen "Navn" finnes på stammor eller mor så føyer vi også til disse egenskapverdiene: 
         stammor_navn = Egenskapverdien "Navn" fra stammor (hvis den finnes)
 
+    NB! Dette er konseptutvikling / eksperimentering / demonstrator! 
+
+    Nedlasting av store datamengder er ekstremt ineffektivt: Vi henter ett og ett objekt i relasjonstreet
+    fra angitt rot og nedover. Greit nok for å eksperimenter / demonstrere, men her er det MYE som bør optimaliseres
+    i produksjon. 
     """
 
     if isinstance( nvdbForekomst, int): 
@@ -342,7 +351,9 @@ def pyntvegref( vegref):
 if __name__ == "__main__":
 
     mittsok = nvdbapiv3.nvdbFagdata( 508 )
-    mittsok.addfilter_geo( { 'vegsystemreferanse' : 'rv706'})
+    # mittsok.addfilter_geo( { 'vegsystemreferanse' : 'rv706'})
+    # mittsok.addfilter_geo( { 'fylke' : '50'})
+    mittsok.addfilter_geo( { 'kartutsnitt' : '227416.128,6951595,227631.4,6951816.951'})
 
     familier = [ ]
 
