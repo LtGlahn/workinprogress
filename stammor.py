@@ -78,6 +78,9 @@ def familietre( nvdbForekomst, relasjonstre = None  ):
         if 'Navn' in egenskaper.keys(): 
             relasjonstre['stammor']['stammor_navn'] = egenskaper['Navn']
 
+        # kontraktsområder
+        k_omr = ','.join( [ kOmr['navn'] for kOmr in  nvdbForekomst['lokasjon']['kontraktsområder']  ]  )
+
 
         # Tar med vegsystemreferanse
         vegref = ','.join( [ vref['kortform'] for vref in  nvdbForekomst['lokasjon']['vegsystemreferanser']  ]  )
@@ -85,7 +88,10 @@ def familietre( nvdbForekomst, relasjonstre = None  ):
         egenskaper.update( {    'stammor_id'            : nvdbForekomst['id'],
                                 'stammor_type'          :  typeid, 
                                 'stammor_typenavn'      : nvdbForekomst['metadata']['type']['navn'], 
-                                'vegsystemreferanser'   : vegref  }  )
+                                'vegsystemreferanser'   : vegref, 
+                                'kontraktsområder'      : k_omr  }  )
+
+        
 
         # Tar med geomtri fra generisk "geometri" - tagg
         geom = nvdbForekomst['geometri']
@@ -111,8 +117,13 @@ def familietre( nvdbForekomst, relasjonstre = None  ):
         data['typenavn'] = nvdbForekomst['metadata']['type']['navn']
         data.update( egenskaper )
 
+        # kontraktsområder
+        k_omr = ','.join( [ kOmr['navn'] for kOmr in  nvdbForekomst['lokasjon']['kontraktsområder']  ]  )
+        data.update( { 'kontraktsområder' : k_omr })
+
         # Tar med vegsystemreferanse
         vegref = ','.join( [ vref['kortform'] for vref in  nvdbForekomst['lokasjon']['vegsystemreferanser']  ]  )
+        vegref = pyntvegref( vegref )
         data.update( { 'vegsystemreferanser' : vegref }  )
 
         # Tar med geomtri fra generisk "geometri" - tagg
@@ -162,7 +173,7 @@ def familieskog( liste_med_slektstre  ):
     return skog 
 
 
-def skog2geopakcage( skog, filnavn ): 
+def skog2geopakcage( skog, filnavn, kontraktsomrader=True ): 
     """
     Tar en familieskog (fra funksjon familieskog) og lagrer til geopackage
     """
@@ -174,10 +185,10 @@ def skog2geopakcage( skog, filnavn ):
         else: 
             lagnavn = 'dattertype' + str( lag )
         
-        liste2tabell( skog[lag]['objekter'], filnavn, lagnavn)
+        liste2tabell( skog[lag]['objekter'], filnavn, lagnavn, kontraktsomrader=kontraktsomrader)
 
 
-def liste2tabell( liste, filnavn, lagnavn ): 
+def liste2tabell( liste, filnavn, lagnavn, kontraktsomrader=True ): 
     """
     Lagrer liste med nvdb forekomster til angitt geopackage-tabell. Forutsetter geometri i egenskapen "wkt" 
 
@@ -191,6 +202,9 @@ def liste2tabell( liste, filnavn, lagnavn ):
 
     # fjerner geometrikolonner
     slettkolonner = [ 'Geometri, punkt', 'Geometri, linje', 'Geometri, flate', 'wkt']
+    if not kontraktsomrader: 
+        slettkolonner.append( 'kontraktsområder')
+
     for slett in slettkolonner: 
         if slett in mydf.columns: 
             mydf.drop( slett, inplace=True, axis=1 )   
@@ -353,7 +367,11 @@ if __name__ == "__main__":
     mittsok = nvdbapiv3.nvdbFagdata( 508 )
     # mittsok.addfilter_geo( { 'vegsystemreferanse' : 'rv706'})
     # mittsok.addfilter_geo( { 'fylke' : '50'})
-    mittsok.addfilter_geo( { 'kartutsnitt' : '227416.128,6951595,227631.4,6951816.951'})
+    # mittsok.addfilter_geo( { 'kartutsnitt' : '227416.128,6951595,227631.4,6951816.951'})
+
+    k_omr = [ '9302 Haugesund 2020-2025', '9304 Bergen', '9305 Sunnfjord' ]
+
+    mittsok.addfilter_geo( { 'kontraktsomrade' : k_omr})
 
     familier = [ ]
 
