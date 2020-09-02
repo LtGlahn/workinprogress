@@ -12,7 +12,7 @@ import os
 
 if not [ k for k in sys.path if 'nvdbapi' in k]: 
     print( "Legger NVDB api til søkestien")
-    # sys.path.append( '../nvdbapi-V2' )
+    # sys.path.append( '../nvdbapi-V3' )
     
     if sys.platform == 'linux': 
         mysep = '/'
