@@ -95,8 +95,8 @@ if __name__ == '__main__':
     t0 = datetime.now( )
     vegkategori = 'F'
     vegobjekttype = 904
-    minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
-    # minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
+    # minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
+    minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
 
     bk = nvdbapiv3.nvdbFagdata(vegobjekttype)
     bk.filter( minefilter )
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         for seg in bk1['vegsegmenter']: 
             if seg['vegsystemreferanse']['vegsystem']['vegkategori'] != vegkategori and not 'sluttdato' in seg.keys(): 
 
-                print( "Avviker fra vegkategori", vegkategori, seg['vegsystemreferanse']['kortform'] )
+                print( "Avviker fra vegkategori", vegkategori, seg['vegsystemreferanse']['kortform'], seg['vegsystemreferanse']['strekning']['trafikantgruppe'] )
                 nabovegkat.add( seg['vegsystemreferanse']['vegsystem']['vegkategori'] + 'v'  )
                 temp['vegsegmenter'].append( deepcopy( seg ))
                 endres = True 
