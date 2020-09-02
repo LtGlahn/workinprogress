@@ -5,6 +5,7 @@ from copy import deepcopy
 from shapely import wkt 
 import pandas as pd 
 import geopandas as gpd 
+from datetime import datetime
 
 def utvidbbox( bbox, buffer):
     """
@@ -91,10 +92,11 @@ def liste2gpkg( minliste, filnavn, lagnavn):
 
 if __name__ == '__main__': 
 
+    t0 = datetime.now( )
     vegkategori = 'F'
     vegobjekttype = 904
-    # minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
-    minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
+    minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
+    # minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
 
     bk = nvdbapiv3.nvdbFagdata(vegobjekttype)
     bk.filter( minefilter )
@@ -171,9 +173,12 @@ if __name__ == '__main__':
 
             if len( endres_egenskaper_flertydig ) == 0: 
                 temp['egenskaper'].append( { 'id' : -6, 'navn' : 'nye_egenskaper', 'verdi' : endres_egenskaper }  )
+                temp['egenskaper'].append( { 'id' : -7, 'navn' : 'unike_naboegenskaper', 'verdi' : True }  )
+
             else: 
                 endres_egenskaper_flertydig.append( endres_egenskaper)
-                temp['egenskaper'].append( { 'id' : -6, 'navn' : 'nye_egenskaper', 'verdi' : endres_egenskaper_flertydig }  )
+                # temp['egenskaper'].append( { 'id' : -6, 'navn' : 'nye_egenskaper', 'verdi' : endres_egenskaper_flertydig }  )
+                temp['egenskaper'].append( { 'id' : -7, 'navn' : 'unike_naboegenskaper', 'verdi' : False  }  )
             
             naboer.extend( tempnaboer ) 
 
@@ -190,3 +195,5 @@ if __name__ == '__main__':
     liste2gpkg( endret, filnavn, 'problemdata') 
     liste2gpkg( naboer, filnavn, 'naboer') 
 
+    tidsbruk = datetime.now( ) - t0 
+    print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
