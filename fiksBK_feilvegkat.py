@@ -1,6 +1,7 @@
 import STARTHER
 import nvdbapiv3
 from copy import deepcopy 
+import pdb 
 
 from shapely import wkt 
 import pandas as pd 
@@ -101,13 +102,13 @@ if __name__ == '__main__':
 
     t0 = datetime.now( )
     vegkategori = 'F'
-    vegobjekttype = 905
-    minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
-    # minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
+    vegobjekttype = 904
+    # minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
+    minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
 
 #    miljo = 'utvles'
-    miljo = 'testles'
-    # miljo = 'prodles'
+    # miljo = 'testles'
+    miljo = 'prodles'
 
     bk = nvdbapiv3.nvdbFagdata(vegobjekttype)
     bk.filter( minefilter )
@@ -123,6 +124,7 @@ if __name__ == '__main__':
 
 
     bk1 = bk.nesteForekomst()
+    print( bk.sisteanrop )
 
     skalendres = [ ]
     endret = [ ]
@@ -175,19 +177,19 @@ if __name__ == '__main__':
 
                 enNabo = nabosok.nesteForekomst( )
 
-                # Har vi en og kun en unik kombinasjon av egenskaper fra naboene? 
-                egenskaper = registreringsegenskaper( enNabo['egenskaper']  )
-                if not endres_egenskaper: 
-                    endres_egenskaper = egenskaper 
-                elif endres_egenskaper != egenskaper: 
-                    endres_egenskaper_flertydig.append( egenskaper )
-
                 while enNabo: 
 
+                    # Vi vil finne bk-objektet også, det er jo stedfestet på to vegkategorier 
                     if enNabo['id'] != bk1['id']: 
-                        junk = deepcopy( enNabo )
-                        junk['geometri'] = None
-                        junk['lokasjon'] = None 
+
+                        # Har vi en og kun en unik kombinasjon av egenskaper fra naboene? 
+                        egenskaper = registreringsegenskaper( enNabo['egenskaper']  )
+                        if not endres_egenskaper: 
+                            endres_egenskaper = egenskaper 
+                        elif endres_egenskaper != egenskaper: 
+                            endres_egenskaper_flertydig.append( egenskaper )
+
+                        enNabo['egenskaper'].append({ 'id' : -6, 'navn' : 'nye_egenskaper', 'verdi' : egenskaper }  ) 
                         tempnaboer.append( enNabo )
 
                     enNabo = nabosok.nesteForekomst( )
@@ -210,7 +212,8 @@ if __name__ == '__main__':
 
 
     # Lagrer til geopackage
-    filnavn = 'fiksebk' + str( vegobjekttype ) + '_' + 'miljo .gpkg' 
+    filnavn = 'fiksebk' + str( vegobjekttype ) + '_' + miljo + '.gpkg' 
+    # filnavn = 'fiksebk' + str( vegobjekttype ) + 'minidatasett.gpkg' 
 
     gdf_skalendres = liste2gpkg( skalendres, filnavn, 'skalendres') 
     gdf_problemdata = liste2gpkg( endret, filnavn, 'problemdata') 
