@@ -85,22 +85,42 @@ def liste2gpkg( minliste, filnavn, lagnavn):
     """
 
     liste2 = nvdbapiv3.nvdbfagdata2records( minliste )
-    mindf = pd.DataFrame( liste2 )
-    mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
-    minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
-    minGdf.to_file(filnavn, layer=lagnavn, driver="GPKG")  
+    if len( liste2 ) > 0: 
+        mindf = pd.DataFrame( liste2 )
+        mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
+        minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
+        minGdf.to_file(filnavn, layer=lagnavn, driver="GPKG")  
+
+        return minGdf
+    else: 
+        print( 'Ingen forekomster å skrive til lag', lagnavn, 'fil', filnavn)
+
+    return None
 
 if __name__ == '__main__': 
 
     t0 = datetime.now( )
     vegkategori = 'F'
-    vegobjekttype = 904
-    # minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
-    minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
+    vegobjekttype = 905
+    minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}    
+    # minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
+
+#    miljo = 'utvles'
+    miljo = 'testles'
+    # miljo = 'prodles'
 
     bk = nvdbapiv3.nvdbFagdata(vegobjekttype)
     bk.filter( minefilter )
     bk.add_request_arguments( { 'segmentering' : False } )
+
+    if not 'prod' in miljo: 
+        print( 'bruker miljø', miljo)
+        bk.miljo(miljo)
+
+    if vegobjekttype in [ 890, 892, 894, 901, 903, 905 ]: 
+        print( "Må logge inn i miljø=", miljo)
+        bk.forbindelse.login( )
+
 
     bk1 = bk.nesteForekomst()
 
@@ -145,6 +165,7 @@ if __name__ == '__main__':
             
             # Henter BK-objekt i nærheten med samme vegkategori
             nabosok = nvdbapiv3.nvdbFagdata( vegobjekttype)
+            nabosok.forbindelse = bk.forbindelse 
 
             nabosok.filter( { 'kartutsnitt' : ','.join( [ str(x) for x in utvidbbox( bbox, buffer ) ]) } ) 
             tempnaboer = []
@@ -189,11 +210,11 @@ if __name__ == '__main__':
 
 
     # Lagrer til geopackage
-    filnavn = 'fiksebk.gpkg' 
+    filnavn = 'fiksebk' + str( vegobjekttype ) + '_' + 'miljo .gpkg' 
 
-    liste2gpkg( skalendres, filnavn, 'skalendres') 
-    liste2gpkg( endret, filnavn, 'problemdata') 
-    liste2gpkg( naboer, filnavn, 'naboer') 
+    gdf_skalendres = liste2gpkg( skalendres, filnavn, 'skalendres') 
+    gdf_problemdata = liste2gpkg( endret, filnavn, 'problemdata') 
+    gdf_naboer = liste2gpkg( naboer, filnavn, 'naboer') 
 
     tidsbruk = datetime.now( ) - t0 
     print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
