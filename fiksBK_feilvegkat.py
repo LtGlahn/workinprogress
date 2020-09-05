@@ -212,6 +212,7 @@ if __name__ == '__main__':
 
     bk1 = bk.nesteForekomst()
     print( bk.sisteanrop )
+    print( bk.info( ) )
 
     skalendres = [ ]
     endret = [ ]
