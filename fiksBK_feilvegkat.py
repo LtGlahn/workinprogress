@@ -162,6 +162,7 @@ def bevartBKverdier( gammelbk, nybk ):
         return False 
 
     ignorer = [ 10920, 10927, 10928, # 905 BK normal, uoff
+                10916, 10918 # Strekningsbeskrivelser 901 tømmer og 903 spesial 
                  ] 
 
     s_ignorer = set( ignorer )
