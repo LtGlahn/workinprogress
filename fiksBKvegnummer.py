@@ -62,15 +62,7 @@ if __name__ == '__main__':
         for seg in bk1['vegsegmenter']: 
             if not 'sluttdato' in seg.keys(): 
 
-                trafikantgruppe = 'U'
-                if 'kryssystem' in seg['vegsystemreferanse'].keys(): 
-                    trafikantgruppe = seg['vegsystemreferanse']['kryssystem']['trafikantgruppe']
-                elif 'sideanlegg' in seg['vegsystemreferanse'].keys(): 
-                    trafikantgruppe = seg['vegsystemreferanse']['sideanlegg']['trafikantgruppe']
-                elif 'strekning' in seg['vegsystemreferanse'].keys(): 
-                    trafikantgruppe = seg['vegsystemreferanse']['strekning']['trafikantgruppe']
-                else: 
-                    print( 'MANGLER vegreferansedetaljer', seg['vegsystemreferanse']['kortform'], bk1['href'])
+                trafikantgruppe = fiksBK_feilvegkat.finntrafikantgruppe( seg )
 
                 vegnrKey = seg['vegsystemreferanse']['kortform'].split()[0] + '-' + trafikantgruppe
 
