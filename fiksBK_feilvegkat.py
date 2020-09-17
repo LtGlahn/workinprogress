@@ -71,7 +71,7 @@ def finntrafikantgruppe( seg):
     elif 'strekning' in seg['vegsystemreferanse'].keys(): 
         trafikantgruppe = seg['vegsystemreferanse']['strekning']['trafikantgruppe']
     else: 
-        print( 'MANGLER vegreferansedetaljer', seg['vegsystemreferanse']['kortform'], bk1['href'])
+        print( 'MANGLER vegreferansedetaljer', seg['vegsystemreferanse']['kortform'])
 
 
     return trafikantgruppe
@@ -187,11 +187,11 @@ if __name__ == '__main__':
 
     t0 = datetime.now( )
     vegkategori = 'F'
-    vegobjekttype = 901
+    vegobjekttype = 903
     # minefilter = { 'kartutsnitt' : '-30363,6634094,-30176,6634265', 'vegsystemreferanse' :  vegkategori + 'v'}   # Ev134 vestpå rundkjøring-eksempel for 904
     # minefilter = { 'kartutsnitt' : '185214.32,6617709.60,201184.26,6630023.57', 'vegsystemreferanse' :  vegkategori + 'v'}  # Vest for Kongsberg Ev134 eksempel for 905 id 779620154
     # minefilter = { 'kartutsnitt' : '413147.36,7302298.06,439536.80,7332742.31', 'vegsystemreferanse' :  vegkategori + 'v'}  # Nordland  905 id 1007822938
-    minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
+    # minefilter = {  'vegsystemreferanse' :  vegkategori + 'v'}    
 
 #    miljo = 'utvles'
     # miljo = 'testles'
@@ -374,7 +374,7 @@ if __name__ == '__main__':
 
 
     # Lagrer til geopackage
-    filnavn = 'fiksebk' + str( vegobjekttype ) + '_' + miljo + '.gpkg' 
+    filnavn = 'rettBK_Fv17' + str( vegobjekttype ) + '_' + miljo + '.gpkg' 
     # filnavn = 'fiksebk' + str( vegobjekttype ) + 'minidatasett.gpkg' 
 
     gdf_skalendres = liste2gpkg( skalendres, filnavn, 'skalendres', vegsegmenter=False ) 

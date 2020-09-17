@@ -7,7 +7,7 @@ import pandas as pd
 import geopandas as gpd 
 from datetime import datetime
 
-import STARTHER
+import lokal_STARTHER
 import nvdbapiv3
 import fiksBK_feilvegkat
 
@@ -19,10 +19,13 @@ if __name__ == '__main__':
 
     tm = nvdbapiv3.nvdbFagdata(540 )
     tm.filter( { 'tidspunkt' : '2019-12-31' })
-    tm.filter( minefilter)
+    # tm.filter( minefilter)
 
     mindf = pd.DataFrame( tm.to_records( ) ) 
 
     mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
     minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
-    minGdf.to_file( 'testdump.gpkg', layer='trafikkmengde2019-12-31', driver="GPKG")  
+    minGdf.to_file( 'trafikkmengde.gpkg', layer='trafikkmengde2019-12-31', driver="GPKG")  
+
+    tidsbruk = datetime.now( ) - t0 
+    print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
