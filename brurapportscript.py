@@ -1,18 +1,39 @@
 import pandas as pd
-import geopandas 
+import geopandas as gpd
 import numpy as np 
 
 import STARTHER
 import nvdbapiv3
 import spesialrapporter
 
+def finnBKfeil( brutusBK, nvdbBk ): 
+    """
+    Sammenligner bruksklasse fra Brutus med bruksklasse fra NVDB og returnerer tekststreng 
+    """
+
+    tempBrutusBk = spesialrapporter.splitBruksklasse_vekt( brutusBK )
+    tempNvdbBK   = spesialrapporter.splitBruksklasse_vekt( nvdbBk )
+
+    result = 'FEIK'
+    if np.isnan( tempBrutusBk[0]) or np.isnan( tempBrutusBk[1] ) or np.isnan( tempNvdbBK[0]) or np.isnan( tempNvdbBK[1]):
+        result = 'Ugyldige data'
+    elif tempBrutusBk[0] < tempNvdbBK[0] or tempBrutusBk[1] < tempNvdbBK[1]:
+        result = 'ALARM: Brutus BK < NVDB'
+    else: 
+        result = 'OK: Brutus BK >= NVDB'
+
+    return result 
+
 if __name__ == '__main__': 
 
     # Leser inn og bearbeider regneark 
     # exceldump = pd.read_excel( 'Copy of 10032021_BRUKSLAST_Jan Kristian.xlsx', sheet_name='Grunnlag', header=6 )
-    exceldump = pd.read_excel( '2060302_BRUKSLAST_Jan Kristian.xlsx', sheet_name='Ark 1', header=7 )
+    exceldump = pd.read_excel( '26032021_BRUKSLAST_Jan Kristian.xlsx', sheet_name='Ark1', header=6 )
+
+
     exceldump = exceldump[exceldump['BRUSTATUS'] == 'TR']
     exceldump = exceldump[exceldump['TRAFIKANTGRUPPE'] == 'K']
+    exceldump = exceldump[exceldump['ER HOVEDVEGREFERANSE'] == 'J'] # Denne hadde vi ikke før! 
     exceldump = exceldump[exceldump['BELIGGENHET'] == 'P'].copy()
 
     # Rensker vekk dem uten NVDB id 
@@ -23,41 +44,67 @@ if __name__ == '__main__':
     exceldump.at[ exceldump[ exceldump['BRUNAVN'] == 'Eikornrød'].index[0], 'NVDB_ID' ] = 272298201
     exceldump = exceldump[ exceldump['NVDB_ID' ] != 272396176 ] 
 
-
     exceldump.reset_index()
 
-    # Føyer på tallverdier for BK og vekt
-    exceldump['brutus_bktall'] = exceldump['BRUKSLAST'].apply( lambda x : spesialrapporter.splitBruksklasse_vekt( x )[0] )  
-    exceldump['brutus_bkvekt'] = exceldump['BRUKSLAST'].apply( lambda x : spesialrapporter.splitBruksklasse_vekt( x )[1] )  
+    ## Føyer på tallverdier for BK og vekt 
+    ## OVERFLØDIG - vi angir dummyvariabel  
+    # exceldump['brutus_bktall'] = exceldump['BRUKSLAST'].apply( lambda x : spesialrapporter.splitBruksklasse_vekt( x )[0] )  
+    # exceldump['brutus_bkvekt'] = exceldump['BRUKSLAST'].apply( lambda x : spesialrapporter.splitBruksklasse_vekt( x )[1] )  
 
     # bru = spesialrapporter.brutusBKoverlapp( offisiell=True, mittfilter={'vegsystemreferanse' : 'Ev134'} )
 
-    bru = spesialrapporter.brutusBKoverlapp( offisiell=False )
-    bru.to_file( 'bruer.gpkg', layer='allebruer', driver='GPKG')
+    bru = spesialrapporter.brutusBKoverlapp( offisiell=False, kunEnTypeBK='normal' )
+    bru.drop( columns=[ 'bru_objekttype', 'bru_versjon', 'bru_startdato',], inplace=True )
+    bru.to_file( 'bruer.gpkg', layer='bruer_plussBKnormal', driver='GPKG')
 
     # bru = gpd.read_file( 'bruer.gpkg', layer='allebruer' )
-
-    # Korrigerer den ene datafeilen vi fant: 
-    bru = bru[ bru['bru_nvdbId' ] != 272396176 ] 
 
     bru.rename( columns={'bru_nvdbId' : 'NVDB_ID'}, inplace=True  )
     merg = pd.merge( bru, exceldump, on='NVDB_ID' )
 
     merg = gpd.geodataframe.GeoDataFrame( merg, geometry='geometry',  crs=5973 ) 
 
-    # 
+    # Rensker vekk de vegsegmentene som ikke matcher på vegnummer
+    # merg['bru_vegnr'] = merg['bru_vref'].apply( lambda x : x.split()[0] )
+    # merg['BRUTUS_VEGNUMMER'] = merg['VEGREFERANSE'].apply( lambda x : x.split()[0] )
+    merg['bru_vegnr'] = merg['bru_vref'].apply( lambda x : ' '.join( x.split()[0:2] ))
+    merg['BRUTUS_VEGNUMMER'] = merg['VEGREFERANSE'].apply( lambda x : ' '.join( x.split()[0:2] )  )
+    merg = merg[ merg['BRUTUS_VEGNUMMER'] == merg['bru_vegnr'] ].copy()
+
+    # Har noen datatyper her som geopackage-formatet ikke takler
     hh = list( merg.select_dtypes([np.datetime64] ).columns )
     for jj in hh: 
         merg[jj] = merg[jj].astype(str)
     merg['KLASSIFISERT DATO'] = merg['KLASSIFISERT DATO'].astype(str)
 
-
     bruid = set( list( bru['NVDB_ID'].unique() ))
     exceldbid = set( list( exceldump['NVDB_ID'].unique() ))
     mergid = set( list( merg['NVDB_ID'].unique() ))    
 
+    merg['BKvalidering'] = merg.apply( lambda x : finnBKfeil( x['BRUKSLAST'], x['bk905_Bruksklasse']), axis=1)
 
-    gale = merg[ (merg['brutus_bkvekt'] < merg['bk905_bkvekt']) | (merg['brutus_bkvekt'] < merg['bk905_bkvekt']) ]
+    # Fjerner brukategorier som er uviktige
+    # Vegbru                  12634 <= TA MED
+    # Bru i fylling            5541 <= TA MED
+    # Ferjeleie                 394 <= TA MED
+    # Tunnel/Vegoverbygg        243
+    # G/S-bru                    64
+    # Støttekonstruksjon         59
+    # Annen byggv.kategori       27
+    # Jernbanebru                16
+
+    # merg = merg[  merg['BRUKATEGORI'] != 'Bru i fylling']
+    merg = merg[  merg['BRUKATEGORI'] != 'Tunnel/Vegoverbygg']
+    merg = merg[  merg['BRUKATEGORI'] != 'G/S-bru']
+    merg = merg[  merg['BRUKATEGORI'] != 'Støttekonstruksjon']
+    merg = merg[  merg['BRUKATEGORI'] != 'Annen byggv.kategori']
+    merg = merg[  merg['BRUKATEGORI'] != 'Jernbanebru']
+
+
+    gale = merg[ merg['BKvalidering'].str.contains('ALARM')  ]
+
+    gale.to_file( 'bruer.gpkg', layer='avvik_bk_bru', driver='GPKG' )
+    merg.to_file( 'bruer.gpkg', layer='blanding_bruer_BK', driver='GPKG' )
 
     # bru.drop( columns=[ 'bru_objekttype', 'bru_versjon', 'bru_startdato',], inplace=True )
 
