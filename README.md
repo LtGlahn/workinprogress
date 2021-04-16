@@ -8,7 +8,16 @@ Data per 16.04.2021 situasjon er lagret i fila **[dagens_riksveger.zip](https://
 
 # Historiske data 
 
-Ting blir mer interessant når vi henter ut historiske data. I kartet under er dagens europa- og riksveg tegnet med blått, og de vegene som en gang har vært riksveg er tegnet med grønt. Mesteparten av de grønne er riksveger som ble fylkesveg ved forvaltningsreformen i 2010. Datasettet finner du [her](https://github.com/LtGlahn/workinprogress/raw/historisk-riksveg/historiske_riksveger.zip)
+Historisk utvikling i NVDB håndteres ved at objekter og veglenker har start- og sluttdato. Alle historiske objekter har start- og sluttdato som er eldre enn dagens dato. Det som skal være gyldig i dag har som regel en åpen sluttdato, det vil si at sluttdato ikke er angitt. Når du leser data fra NVDB api vil du derfor se en startdato, men ingen sluttdato - med mindre du eksplisitt ber om historiske data. 
+
+> Vi har noen veldig få unntak fra regelen om at objekter gyldige i dag har åpen sluttdato. Det finnes noen få anvendelser der det kan være greit at et objekt blir historisk på en fremtidig valgt dato, for eksempel fordi andre data skal gjelde etterpå. Denne mekanismen gjør at vi i dag kan legge inn data for endringer som først skal tre i kraft neste høst. Men en slik løsning har et visst potensiale for kaos og forvirring, så det gjøres kun unntaksvis. 
+
+Startdatoen **1950-01-01** har en spesiell betydning: Den betyr at de dataene er eldre enn cirka 2005, da NVDB ble satt i drift. Vi har eldre data enn det i NVDB, men da mangler vi presis informasjon om når objektet oppstod. Så 1950 blir en standardverdi som betyr _**aner ikke hvor gammel denne vegen er, men trolig eldre enn 2005**. 
+
+> Heldigvis har vegnettet ofte en **måledato**, som betyr datoen vegen ble innmålt, enten fra flyfoto eller i terreng. Merk at måledato i NVDB kan være betydelig nyere enn vegen, spesielt for kommunale og private veger. Men for europa- og riksveger er det ofte en grei antagelse at måledato enten er fysisk innmåling ved vegutbygging eller fra første flyfoto tatt etter at vegen åpnet. Skal man ha det mer presist må man gå til andre kilder. 
+
+I kartet under er dagens europa- og riksveg tegnet med blått, og de vegene som en gang har vært riksveg er tegnet med grønt. Mesteparten av de grønne er riksveger som ble fylkesveg ved forvaltningsreformen i 2010. Datasettet finner du [her](https://github.com/LtGlahn/workinprogress/raw/historisk-riksveg/historiske_riksveger.zip)
+
 
 ![Kart over dagens og historiske riksveger](./pics/historisk_riksveg.png)
 
@@ -31,7 +40,7 @@ Og åpner egenskaptabellen for vegnettet synlig i kart når vi er _*helt*_ innp�
 | EV18 | 1974-01-01 | 1990-08-15 | 1997-05-27 | E18 byttet navn i 1997 | 
 | EV39 | 1974-01-01 | **1997**-05-27 | **2000**-09-28 | Fra 97 til 2000 het vegen E39, deretter ble det fylkesveg |
 
-Startdato 1950 kan være når som helst før NVDB ble operasjonell, cirka 2006 eller deromkring. **Måledato** forteller oss at vegen ble innmålt i 1974. Dette er trolig byggeår - det er jo naturlig å måle inn vegen mens den bygges, men for å være skråsikker bør man bekrefte dette med andre kilder. Vegen het E18 fra byggeår og fram til 1997, da vi byttet navn til E39. Og i år 2000 bygget vi ny E39 lengre vest, denne her ble da fylkesveg. 
+**Startdato 1950-01-01** har ingenting med vegutbygging å gjøre - den forteller kun at data om denne vegen eller objektet er eldre enn NVDB.  **Måledato** forteller oss at vegen ble innmålt i 1974. Dette er trolig byggeår - det er jo naturlig å måle inn vegen mens den bygges, men for å være skråsikker bør man bekrefte dette med andre kilder. Vegen het E18 fra byggeår og fram til 1997, da vi byttet navn til E39. Og i år 2000 bygget vi ny E39 lengre vest, denne her ble da fylkesveg. 
 
 > 'v' - en i Ev18 og Ev39 betyr _veg som er del av operativt vegnett_ . Denne 'v' - en pleier vi utelate når vi snakker om europaveger (E18, E39), men vi pleier ta den med når vi snakker om fylkesveger og riksveger (Fv44, Rv)
 
@@ -66,8 +75,6 @@ Siste gang: Vi zoomer inn sør for Nærbø
 
 Mange tusen kilometer med riksveg ble i 2010 overført fra staten til fylkeskommunen gjennom forvaltningsreformen i 2010.
 
-NVDB ble operasjonell cirka 2006, men de eldste dataene i NVDB er hentet fra den enda eldre _*vegdatabanken*_, etablert i 1987. 
-
 # Andre historikkbrudd - regionreformen 2020
 
 Vi måtte gjøre drastiske endringer i NVDB-systemet ved forvaltningsreformen i 2020. Da gikk vi fra 19 til 11 fylker, og det gamle vegreferansesystemet - med fylkesnummer - ble dermed ubrukelig, og vi måtte lage et nytt. Du kan lese litt om overgang fra gammelt til nytt vegreferansesystem [her](https://www.vegvesen.no/fag/teknologi/nasjonal+vegdatabank/vegreferansesystem) og [her](https://www.vegdata.no/ofte-stilte-sporsmal/hva-ma-jeg-vite-om-vegsystemreferanse/). Vi har også laget [oversettelse mellom gammelt og nytt system](https://www.vegdata.no/ofte-stilte-sporsmal/oversette-mellom-ny-og-gammel-vegreferanse/).
@@ -78,7 +85,7 @@ Hvis gamle data for trafikantgruppe eller metrering er relevant må du hente ut 
 
 # Filtrere på start- og sluttdato 
 
-I dette datasettet har vi lagt til rette for en enkel datofiltering som bør fungere i de fleste systemer. Start- og sluttdato er lagret som  et heltall mellom 19500101 og 99991231 i variablene (kolonnene) `stardato_num, sluttdato_num`. Dermed kan du bruke operatorene _mindre enn_ eller _strørre enn_ for å filtrere datasettet (dvs >, <, >= og <=). 
+I dette datasettet har vi lagt til rette for en enkel datofiltering som bør fungere i de fleste systemer. Start- og sluttdato er lagret som  et heltall mellom 19500101 og 99991231 i variablene (kolonnene) `stardato_num, sluttdato_num`. Dermed kan du bruke operatorene _mindre enn_ eller _strørre enn_ for å filtrere datasettet (dvs >, <, >= og <=). Tallet 99991231 erstatter såkalt _**åpen sluttdato**_, som er det normale for objekter gyldige i dag. 
 
 For å få det vegnettet som er gyldig i dag kan du f.eks. gjøre slik: 
 
