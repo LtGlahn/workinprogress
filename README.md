@@ -108,4 +108,4 @@ Deretter er du klar til å kjøre python-scriptet `hentrv.py`
 
 # Todo 
 
-Kommer snart forklaring på hvordan du henter historiske vegnettsdata fra de eldste krinkelkrokene i NVDB. 
+Eksempel på analyse av historiske objekter 532 vegreferanse.
