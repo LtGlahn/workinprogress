@@ -17,7 +17,10 @@ For å kjøre dette programmet må du ha python med geopandas installert. Vår s
 conda install geopandas
 ```
 
-Deretter kjører du python-scriptet `hentrv.py` 
+Så må du hente [dette biblioteket](https://github.com/LtGlahn/nvdbapi-V3) og lagre det lokalt. PRO-tip: editer fila **starther** slik at mappen for nvdbapi-V3 havner på python søkestien din. 
+
+
+Deretter er du klar til å kjøre python-scriptet `hentrv.py` 
 
 # Todo 
 
