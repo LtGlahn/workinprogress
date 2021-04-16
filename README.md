@@ -8,7 +8,7 @@ Data per 16.04.2021 situasjon er lagret i fila **[dagens_riksveger.zip](https://
 
 # Historiske data 
 
-Ting blir mer interessant når vi henter ut historiske data. I kartet under er dagens europa- og riksveg tegnet med blått, og de vegene som en gang har vært riksveg er tegnet med grønt. Mesteparten av de grønne er riksveger som ble fylkesveg ved forvaltningsreformen i 2010. 
+Ting blir mer interessant når vi henter ut historiske data. I kartet under er dagens europa- og riksveg tegnet med blått, og de vegene som en gang har vært riksveg er tegnet med grønt. Mesteparten av de grønne er riksveger som ble fylkesveg ved forvaltningsreformen i 2010. Datasettet finner du [her](https://github.com/LtGlahn/workinprogress/raw/historisk-riksveg/historiske_riksveger.zip)
 
 ![Kart over dagens og historiske riksveger](./pics/historisk_riksveg.png)
 
@@ -48,7 +48,6 @@ __helt inn__
 
 | vegnummer | måledato | startdato | sluttdato | kommentar | 
 |---|---|---|---|---|
-| vegnummer | måledato | startdato | sluttdato |
 | RV507  | **1977**-01-01 | 1950-01-01 | 1989-07-17 | Innmålt 1977, dette er trolig byggeår? |
 | RV507  | 1977-01-01 | 1989-07-17 | **2010**-01-01 | Ble fylkesveg ved regionreformen 2010 | 
 
@@ -75,7 +74,24 @@ Vi måtte gjøre drastiske endringer i NVDB-systemet ved forvaltningsreformen i 
 
 Vi tok i bruk det nye vegreferansesystemet i november 2019. Det gamle systemet lever fremdeles parallelt med det nye frem til [august 2021](https://www.vegdata.no/info-utfasing-nvdb-klassisk/), slik som vist i [vegkart klassis](https://vegkart-2019.atlas.vegvesen.no/). Uttak av vegnettsdata med sluttdato før november 2019 gir litt mangelfulle data, blant annet mangler du informasjon om trafikantgruppe. Dermed er det vrient å skille mellom veg for kjørende (trafikantgruppe K) og gående/syklende (trafikantgruppe G). De eldste dataene vil heller ikke være metrert etter det nye systemet. 
 
-Hvis gamle data for trafikantgruppe eller metrering er relevant må du hente ut data for objekttypen [532 vegreferanse](https://datakatalogen.vegdata.no/532-Vegreferanse). Vi håper å lage eksempel på dette snart. 
+Hvis gamle data for trafikantgruppe eller metrering er relevant må du hente ut data for objekttypen [532 vegreferanse](https://datakatalogen.vegdata.no/532-Vegreferanse). Vi håper å lage eksempel på en slik analyse snart. 
+
+# Filtrere på start- og sluttdato 
+
+I dette datasettet har vi lagt til rette for en enkel datofiltering som bør fungere i de fleste systemer. Start- og sluttdato er lagret som  et heltall mellom 19500101 og 99991231 i variablene (kolonnene) `stardato_num, sluttdato_num`. Dermed kan du bruke operatorene _mindre enn_ eller _strørre enn_ for å filtrere datasettet (dvs >, <, >= og <=). 
+
+For å få det vegnettet som er gyldig i dag kan du f.eks. gjøre slik: 
+
+```
+historisk_e_r.sluttdato_num > 20210416 
+```
+
+For å få det vegnettet som var gyldig like før regionreformen i 2010: 
+
+```
+historis_e_r.startdato <= 20091231 AND historisk_e_r.sluttdato > 20091231
+```
+Merk at i NVDB er konvensjonen [gyldig fra og med, gyldig til>, dvs ikke "til og med". Derfor >= operatoren på startdato. 
 
 # Innstallasjon og kjøring
 
