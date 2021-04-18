@@ -57,8 +57,8 @@ if __name__ == '__main__':
     ## DEMO 1 
     ## 
     ## kode for kun å hente dagens vegnett
- 
-     ##################################################################################
+    ## 
+    ##################################################################################
     idagfilter = { 'kartutsnitt' : '-53074.72,6507486.16,-13880.70,6570928.63', 'vegsystemreferanse' : 'Rv,Ev' } 
     idag = nvdbapiv3.nvdbVegnett(  )
     idag.filter( idagfilter )
@@ -105,14 +105,7 @@ if __name__ == '__main__':
     dagens.to_file(  'riksveger.gpkg', layer='dagens_e_r', driver="GPKG")  
     histGdf.to_file( 'riksveger.gpkg', layer='historisk_e_r', driver="GPKG")  
 
-    ##################################################################################
-    ## DEMO 3
-    ## 
-    ## For data eldre enn november 2019 så er vegnettsdata litt mangelfulle: Du mangler for 
-    ## eksempel data for trafikantgruppe. Løsningen er å hente historikk for objekttypen 532 vegreferanse
-
-    # To be written... 
-
-
+    
     tidsbruk = datetime.now( ) - t0 
     print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
+
