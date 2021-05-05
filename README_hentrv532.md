@@ -8,16 +8,24 @@ se [analyse av vegnett](./README.md) for analyse av historisk vegnett. Dette er 
 
 For endringer før november 2019 blir noen av analysene ufullstendige. For eksempel mangler data om trafikantgruppe for endringer før november 2019. Da er det vanskelig å skille mellom gang/sykkelveger og vanlige bilveger. Heldigvis kan analyse av 532 vegreferanse kaste lys over problemet. 
 
+# Nedlasting av data
 
-... to be written... 
+For [nedlasting av vegnett](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/openapi/#/Vegnett/get_vegnett_veglenkesekvenser_segmentert) har vi en fin `historisk` - parameter. Ved å sette `historisk=true` får vi all historikk for veglenkeskvenser i NVDB, innafor de andre søkeparametrene du har satt. 
 
-# Historiske data 
+Vi har ingen tilsvarende `historisk` - parameter for [nedlasting av vegobjekter)](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/openapi/#/Vegobjekter/get_vegobjekter__vegobjekttypeid_). Den eneste historikkfunksjonen som er tilgjengelig er `tidspunkt=<en konkret dato>`. Vårt hack blir da å laste ned data for hvert år fra 2004 til i dag. Dette er ineffektivt og gjør at vi etterpå må rydde vekk dubletter  (dvs hvis et vegobjekt var gyldig uten endringer i både 2004 og 2005 så kommer dette vegobjektet to ganger). 
+
+# Metode 
+
+1. Fra [NVDB api](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/openapi/#/Vegobjekter/get_vegobjekter__vegobjekttypeid_) laster du ned vegobjekter av typen [532 Vegreferanse](https://datakatalogen.vegdata.no/532-Vegreferanse) innafor søkekriterinene: 
+    * innafor valgt kartutsnitt
+    * Med egenskapfilter Vegkategori = Europaveg, Riksveg eller Fylkesveg `egenskap='4566=5492 OR 4566=5493 OR 4566=5494'`
+    * For hvert `tidspunkt=`nyttårsdag for årene 2004 til i dag, pluss `2009-12-31` (dagen før forvaltningsreform 2010)
+1. Fjern dubletter basert på egenskapene `nvdbId, versjon, veglenkesekvensid, startposisjon, sluttposisjon`. 
+
+# Historiske data: Start og sluttdato
 
 
-**Startdato 1950-01-01** har ingenting med vegutbygging å gjøre - den forteller kun at data om denne vegen eller objektet er eldre enn NVDB.  **Måledato** forteller oss at vegen ble innmålt i 1974. Dette er trolig byggeår - det er jo naturlig å måle inn vegen mens den bygges, men for å være skråsikker bør man bekrefte dette med andre kilder. Vegen het E18 fra byggeår og fram til 1997, da vi byttet navn til E39. Og i år 2000 bygget vi ny E39 lengre vest, denne her ble da fylkesveg. 
-
-> 'v' - en i Ev18 og Ev39 betyr _veg som er del av operativt vegnett_ . Denne 'v' - en pleier vi utelate når vi snakker om europaveger (E18, E39), men vi pleier ta den med når vi snakker om fylkesveger og riksveger (Fv44, Rv)
-
+**Startdato 1950-01-01** har ingenting med vegutbygging å gjøre - den forteller kun at data om denne vegen eller objektet er eldre enn NVDB.  **Måledato** kan fortelle oss når vegen ble innmålt - når egenskapen finnes. Måledato er trolig enten byggeår (hvis vegen ble innmålt med landmålerutstyr så er det jo naturlig å måle inn vegen mens den bygges. Men vegen kan også være innmålt fra flyfoto. For å være skråsikker bør man bekrefte dette med andre kilder.
 
 # Første historikkbrudd - forvaltningsreformen 2010
 
@@ -29,7 +37,7 @@ Vi måtte gjøre drastiske endringer i NVDB-systemet ved forvaltningsreformen i 
 
 Vi tok i bruk det nye vegreferansesystemet i november 2019. Det gamle systemet lever fremdeles parallelt med det nye frem til [august 2021](https://www.vegdata.no/info-utfasing-nvdb-klassisk/), slik som vist i [vegkart klassis](https://vegkart-2019.atlas.vegvesen.no/). Uttak av vegnettsdata med sluttdato før november 2019 gir litt mangelfulle data, blant annet mangler du informasjon om trafikantgruppe. Dermed er det vrient å skille mellom veg for kjørende (trafikantgruppe K) og gående/syklende (trafikantgruppe G). De eldste dataene vil heller ikke være metrert etter det nye systemet. 
 
-Hvis gamle data for trafikantgruppe eller metrering er relevant må du hente ut data for objekttypen [532 vegreferanse](https://datakatalogen.vegdata.no/532-Vegreferanse). Vi håper å lage eksempel på en slik analyse snart. 
+Hvis gamle data for trafikantgruppe eller metrering er relevant må du hente ut data for objekttypen [532 vegreferanse](https://datakatalogen.vegdata.no/532-Vegreferanse). 
 
 # Tredje historikkbrudd kommer i august 
 
@@ -64,7 +72,3 @@ Så må du hente [dette biblioteket](https://github.com/LtGlahn/nvdbapi-V3) og l
 
 
 Deretter er du klar til å kjøre python-scriptet `hentrv532.py` 
-
-# Todo 
-
-Lage ferdig eksempel på analyse av historiske objekter 532 vegreferanse.
