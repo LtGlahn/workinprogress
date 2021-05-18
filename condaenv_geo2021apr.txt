@@ -1,0 +1,11 @@
+# packages in environment at /home/jan/anaconda3/envs/geo2021aprV2:
+#
+# Name                
+
+conda create -n geo2021aprV2 bokeh cartopy dask fiona geojson geopandas geoviews geoviews-core holoviews hvplot numpy openpyxl pandas pandoc pandocfilters postgresql proj pyproj shapely xlrd xlsxwriter xmltodict ipykernel ipympl nb_conda_kernels nodejs
+      
+             
+                
+            
+                
+            
