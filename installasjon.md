@@ -2,7 +2,7 @@
 
 # Installasjon og konfigurering
 
-På PC der dere har admin-rettigheter skal det være grei skuring å installere diverse open source programvare. Se [installasjon](./installasjon.md)
+På PC der dere har admin-rettigheter skal det være grei skuring å installere diverse open source programvare. Dette er 
 
 
 ## Python ["individual edition"](https://www.anaconda.com/products/individual) fra Anaconda 
@@ -17,6 +17,8 @@ Distribusjonslisten vi ønsker å bruke heter `conda-forge`.
 
 **Enklest oppskrift**: Etter å ha prøvd ut _Anaconda navigator_ vil jeg påstå det enkleste er å kjøre disse kommandoene i terminalvindu. Start `Anaconda prompt`via Start-menyen. Kopier og lim inn en linje av gangen. Merk at den tredje conda-kommandoen er laaaaaaang, pass på at den ikke brytes med linjeskift før du limer den inn. 
 
+Og dette går treeeeeeeeeeegt... tok timesvis på min ganske utdaterte reisepc. Etterpå har dere et nytt environment kalt `kulegeoting`
+
 ```
 conda config --add channels conda-forge
 conda config --set channel_priority strict
@@ -30,11 +32,13 @@ conda create -n kulegeoting bokeh cartopy dask fiona geojson geopandas geoviews 
 **Med Conda Navigator**. Oppskriften for å legge til riktig "channel" (conda forge distribusjonsliste) står helt nederst her: https://conda-forge.org/docs/user/introduction.html#display-conda-forge-packages-in-anaconda-navigator . Lengre opp på samme side står generelle tips om "anaconda navigator". I prinsippet skal det bare være å klikke seg gjennom, og dernest følge oppskriften for _Create environment_ og så installere hvert av programmene på listen over. 
 
 
+### Føy editoren "spyder" til det nye miljøet ditt
 
-Terskelverdier: Fant 123 krumningsradious og 6.6% stigning, 
-500 bufferradius, 180 meters krumningsradius og 6.6% stigning. 
+Åpne `"Anaconda Navigator"`. Velg det nye miljøet `kulegeoting` i nedtrekksmenyen "Applications on". Noen applikasjoner, som for eksempel Jupyter notebook, er allerede på plass, mens for "Spyder" må du klikke "install". Dette går treeegt... 
 
-### Jans bibliotek for å lese NVDB-data 
+![Installer spyder i environment](./pics/navigator-installer-spyder-i-env.png)
+
+# Jans bibliotek for å lese NVDB-data 
 
 Last ned https://github.com/ltglahn/nvdbapi-v3 (og pakk ut, dersom du bruker "download zip-file" metoden). 
 
