@@ -61,11 +61,28 @@ Velg KRS-fanen (klikk i venstre marg). Deretter
 1. Velg projeksjonen `epsg:25833` i listen over projeksjoner (feltet midt på)
 1. Klikk OK
 
-Legg så til kartbakgrunn: **Lag -> Legg til Lag 
-
-
 ![Qgis sett KRS](./pics/qgis-projeksjon.png)
 
 Jans python-bibliotek har også en qgis-integrasjon der man kan bruke python-kommandoer for å laste ned data direkte fra NVDB api. Se beskrivelse her: https://github.com/LtGlahn/nvdbapi-V3/blob/master/README_qgis.md 
 
+### Legg til bakgrunnskart 
 
+Legg så til kartbakgrunn: 
+
+  * **Lag -> Legg til Lag -> Legg til ArcGIS REST Server lag **
+  * Dialogboks "Opprett ny ARCGISMAPSERVER - tilkobling": 
+    * Gi tjenesten et fornuftig navn, for eksempel "NVDB kartcache"
+    * i feltet URL `https://services.geodataonline.no/arcgis/rest/services/Trafikkportalen/GeocacheTrafikkJPG/MapServer` 
+    * Klikk OK 
+  * Nedtrekksmenyen "Tjenertilkoblinger" har nå 1 - en - valgmulighet, med det navnet du ga den i punktet over (f.eks. "Nvdb kartcache").
+      * Velg tjenertilkoblingen "Nvdb kartcache", klikk "Koble til". 
+      * Kartlaget **"Geocachetrafikk"** skal nå dukke opp i det hvite felget. Marker (klikk på det), slik at det blir blått, og klikk "Legg til". 
+
+
+![Legg til kartlag fra arcgis server](./pics/qgis-addarcgisserverlayer.png) 
+
+![Legg til kartlag fra arcgis server](./pics/qgis-leggtilkartlag2.png)
+
+![Legg til kartlag fra arcgis server](./pics/qgis-leggtilnvdbkartcache.png)
+
+![Legg til kartlag fra arcgis server](./pics/qgis-leggtilkartlag3.png)
