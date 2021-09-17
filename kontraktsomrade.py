@@ -1,13 +1,20 @@
-import pdb
+"""
+Hvilke kontraktsområder finnes hvor på vegnettet? Er det deler av vegnettet som ikke er tilknyttet et kontraktsområde? 
+
+Dette scriptet svarer på slike spørsmål. Vi laster ned segmentert vegnett fra NVDB api og ser hvilke kontraktsområder 
+som finnes. Vi lagrer resultatene som ett kartlag per kontraktsområde. Ettersom disse kontraktsområdene har ganske lange 
+og kronglete navn må vi navngi dem med løpenummer (kontrakt_1, kontrakt_2 osv). I tillegg kommer et kartlag for INGEN_KONTRAKT, 
+hvis vi finner noen slike. For Innlandet har vi f.eks. 1.1km med gang/sykkelveg der det ikke finnes noen kontrakt. 
+
+Filformatet er OGC Geopackage (.gpkg), et moderne filformat som leses av de fleste kartsystemer. 
+"""
 
 import pandas as pd
 import geopandas as gpd
-from shapely import wkt, wkb 
-from shapely.geometry import LineString 
+from shapely import wkt
 
-import lokal_STARTHER
-import nvdbapiv3
-import nvdbgeotricks 
+import lokal_STARTHER # Sørger for at biblioteket med nvdbapiv3 blir tilgjengelig på søkestien 
+import nvdbapiv3      # https://github.com/LtGlahn/nvdbapi-V3 
 
 
 if __name__ == '__main__': 
@@ -36,8 +43,7 @@ if __name__ == '__main__':
 
             resultat[manglernavn].append( veg  )
 
-    # Etterbehandler og knar: 
-
+    # Etterbehandler, knar og lagrer til fil, ett kartlag per kontraktsområde: 
     for idx, enkontrakt in enumerate( list( resultat.keys())): 
 
         if enkontrakt ==  manglernavn: 
