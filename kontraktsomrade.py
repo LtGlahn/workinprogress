@@ -61,3 +61,7 @@ if __name__ == '__main__':
         vegGdf = gpd.GeoDataFrame(  vegDf, geometry='geometry', crs=5973  )
         vegGdf.to_file( 'komrader_innlandet.gpkg', layer=tabellnavn, driver='GPKG')
 
+        if enkontrakt == manglernavn: 
+            vegGdf.to_file( 'mangler_komraade_innlandet.gpkg', layer=tabellnavn, driver='GPKG')
+            
+
