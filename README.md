@@ -28,4 +28,4 @@ Her er den lengste dataraden, nesten ei mil med E6. Når vi først får vist str
 
 ![Rutesøk som feiler, nesten ei mil med E6 har gått ut av bruk](./pics/mangelrapport-E6ikkeibruk.png)
 
-Jeg har kun sjekket de sju lengste strekningen fra sql-dumpen. Det var en god blanding av reelle feil, vegnett som er gått ut av bruk og falske positive. s
+Jeg har kun sjekket de sju lengste strekningen fra sql-dumpen. Det var en god blanding av reelle feil, vegnett som er gått ut av bruk og falske positive. 

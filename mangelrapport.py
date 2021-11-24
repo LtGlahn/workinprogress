@@ -154,14 +154,14 @@ if __name__ == '__main__':
 
     mindf = mindf[col].copy()
 
-    mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'vref' ], ascending=[False, False, True, True], inplace=True )
+    mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ], ascending=[False, False, True, True], inplace=True )
     
     mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
     minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
     minGdf.drop( columns='geometri', inplace=True )
     minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
 
-    mindf.drop( columns=['geometri', 'geometry'], inplace=True|)
+    mindf.drop( columns=['geometri', 'geometry'], inplace=True )
     mindf.to_excel( 'mangelrapport.xlsx', index=False  )
 
     # tidsbruk = datetime.now( ) - t0 
