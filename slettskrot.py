@@ -33,9 +33,11 @@ def sjekksletting( vegobjektid ):
             print( 'Ignorerer objektID', vegobjektid, 'pga relasjoner:', data['relasjoner'])
         elif data['lokasjon']['stedfestinger']:
             print( 'Ignorerer objektID', vegobjektid, 'pga gyldig stedfesting'  )
+
+        elif 'sluttdato' in data['metadata']: 
+            print( 'Siste gyldige versjon av', vegobjektid, 'er allerede lukket', data['metadata']['sluttdato'] )
         else: 
             return data
-
 
     else: 
         print( 'FEILER - feilkode', r.status_code, 'for spørring', r.url )
@@ -53,21 +55,21 @@ if __name__ == '__main__':
     # tm.filter( minefilter)
     filnavn = 'objekt_uten_vegreferanse.xls'
     slettemanus = pd.read_excel( filnavn )
+    slettobjekter = []
 
     for ix, row in slettemanus.iterrows():
 
-        if ix < 3: 
-            slett = sjekksletting( row['VEGOBJEKT-ID'])
-            if slett: 
-                print( 'Ikke ferdig')
-                
+        slett = sjekksletting( row['VEGOBJEKT-ID'])
+        if slett: 
+
+            slettobjekter.append( slett )                
 
 
-    # mindf = pd.DataFrame( tm.to_records( ) ) 
+    endringssett = skrivnvdb.fagdata2skrivemal( slettobjekter, operasjon='lukk' ) 
 
-    # mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
-    # minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
-    # minGdf.to_file( 'trafikkmengde.gpkg', layer='trafikkmengde2019-12-31', driver="GPKG")  
-
-    # tidsbruk = datetime.now( ) - t0 
-    # print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
+    # snakkmedskriv = skrivnvdb.endringssett( endringssett )               # Objekt som håndterer kommunikasjon med SKRIV 
+    # snakkmedskriv.forbindelse.login( miljo='testskriv', username='****' )  # Logger inn i SKRIV TESTPROD
+    # snakkmedskriv.forbindelse.login( miljo='prodskriv', username='****' )  # Logger inn i SKRIV PRODUKSJON 
+                                                                              # Passord oppgis interaktivt, eller bruk nøkkelord pw='***********' 
+    # snakkmedskriv.registrer( dryrun=True )                               # Registrer endringssett
+    # snakkmedskriv.startskriving( )
