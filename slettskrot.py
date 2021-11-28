@@ -46,24 +46,16 @@ def sjekksletting( vegobjektid ):
 
 if __name__ == '__main__': 
 
-
-    forb = nvdbapiv3.apiforbindelse()
-
-
-    # tm = nvdbapiv3.nvdbFagdata(540 )
-    # tm.filter( { 'tidspunkt' : '2019-12-31' })
-    # tm.filter( minefilter)
     filnavn = 'objekt_uten_vegreferanse.xls'
     slettemanus = pd.read_excel( filnavn )
     slettobjekter = []
 
     for ix, row in slettemanus.iterrows():
 
-        slett = sjekksletting( row['VEGOBJEKT-ID'])
+        slett = sjekksletting( row['VEGOBJEKT-ID'] )
         if slett: 
 
             slettobjekter.append( slett )                
-
 
     endringssett = skrivnvdb.fagdata2skrivemal( slettobjekter, operasjon='lukk' ) 
 
