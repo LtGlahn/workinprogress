@@ -1,12 +1,12 @@
 from copy import deepcopy 
 import pdb 
+from datetime import datetime
 
 from shapely import wkt 
 from shapely.geometry import LineString 
 # from shapely.ops import unary_union
 import pandas as pd 
 import geopandas as gpd 
-from datetime import datetime
 
 import STARTHER 
 import nvdbapiv3
@@ -116,6 +116,10 @@ def lesmangelrad( enkeltrad ):
     Leser mangelrapport og returnerer dictionary med datavedier for veglenkeid, posisjon fra og til og VREF
     """
     returdata = None 
+    kjente_feil = [ 'EV6 S185D10 seq=9000 (K)', 'asdf', 
+                    'enda en feil' ]
+
+
     if isinstance(enkeltrad, str): 
         mylist = enkeltrad.split()
     elif isinstance( enkeltrad, list ): 
@@ -134,6 +138,11 @@ def lesmangelrad( enkeltrad ):
 
         except ValueError: 
             return None 
+
+        else: 
+            if returdata['sqldump_vref'] in kjente_feil: 
+                print( 'Ignorerer kjent feil', enkeltrad )
+                return None 
 
     return returdata 
 
@@ -159,10 +168,10 @@ if __name__ == '__main__':
     mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
     minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
     minGdf.drop( columns='geometri', inplace=True )
-    minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
+    # minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
 
     mindf.drop( columns=['geometri', 'geometry'], inplace=True )
-    mindf.to_excel( 'mangelrapport.xlsx', index=False  )
+    # mindf.to_excel( 'mangelrapport.xlsx', index=False  )
 
     # tidsbruk = datetime.now( ) - t0 
     # print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
