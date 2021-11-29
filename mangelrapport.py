@@ -56,10 +56,16 @@ def lesmangel( filnavn ):
             if p1: 
                 cc['start_wkt']     = p1['geometri']['wkt']
                 cc['start_vref']    = p1['vegsystemreferanse']['kortform']
+
+            else: 
+                print( 'Fikk ikke gyldige data for geometrispørring startpunkt', str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )   )
+
             p2 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
             if p2: 
                 cc['slutt_wkt']     = p2['geometri']['wkt']
                 cc['slutt_vref']    = p2['vegsystemreferanse']['kortform']
+            else: 
+                print( 'Fikk ikke gyldige data for geometrispørring sluttpunkt', str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )   )
 
             # Henter rute 
             rute = nvdbapiv3.hentrute( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), 
@@ -92,18 +98,28 @@ def lesmangel( filnavn ):
             # Fallback hvis ingenting av det andre funker 
             if not suksess: 
                 cc['rute_stedfesting'] = 'FEILER, kun start-sluttpunkt'
-                p1 = wkt.loads( cc['start_wkt'] )
-                p2 = wkt.loads( cc['slutt_wkt'] )
-                myLine = LineString([p1, p2] )
-                if cc['sqldump_length'] == 0: 
-                    cc['geometri'] = p1.wkt
-                else:     
-                    cc['geometri'] = myLine.wkt 
+
+                try: 
+                    p1 = wkt.loads( cc['start_wkt'] )
+                    p2 = wkt.loads( cc['slutt_wkt'] )
+                    if cc['sqldump_length'] == 0: 
+                        cc['geometri'] = p1.wkt
+                    else:     
+                        myLine = LineString([p1, p2] )
+                        cc['geometri'] = myLine.wkt 
+
+
+                except KeyError as ERR: 
+                    print( 'Backup-metode for stedfesting feiler', cc['sqldump_vref'], ERR )
+                    cc['rute_stedfesting'] = 'FEILER, lager fiktiv linje uti Norskehavet'
+                    cc['geometri'] =  'LineString (101237.70285620921640657 7128534.10969377029687166, 225651.72560383414383978 7241528.48784137237817049)'
+
                 data.append( cc )
+
             count += 1 
 
             if count == 1 or count == 10 or count % 50 == 0: 
-                print( f'Leser rad {count} av {len(lines)}')
+                print( f'Prosesserte rad {count} av {len(lines)}')
 
     return data 
 
@@ -115,6 +131,7 @@ def lesmangelrad( enkeltrad ):
     
     Leser mangelrapport og returnerer dictionary med datavedier for veglenkeid, posisjon fra og til og VREF
     """
+
     returdata = None 
     kjente_feil = [ 'EV6 S185D10 seq=9000 (K)', 'asdf', 
                     'enda en feil' ]
@@ -147,6 +164,7 @@ def lesmangelrad( enkeltrad ):
     return returdata 
 
 if __name__ == '__main__': 
+    print( 'Mangelrapport 1.0 - mer robust feilhåndtering')
 
     dd = lesmangel( 'checkCoverage_904_ERF_VT_K_-ferje.log')
 
