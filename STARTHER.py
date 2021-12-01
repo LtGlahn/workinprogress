@@ -1,16 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Setter opp søkestien slik at du finner NVDB-api funksjonene 
-Antar at dette biblioteket finnes et hakk opp i filtreet, 
-i mappen ../nvdbapi-V3/
+Gjør ingenting som helst, men erstatter den fila som 
+TIL VANLIG legger mappen med nvdbapi-V3/ til søkestien 
+via 
+import sys
+sys.path.append( 'Mappesti/til/nvdbapi-v3' )
 
 """
 
-import sys
-import os 
+try: 
+    import nvdbapiv3
+except ImportError:  
+    print( "Fant ikke nvdbapiv3 på søkestien, sjekk harddisken din")
+    print( "Bruk enten \n]: import sys")
+    print( "]: sys.path('/mappe/der/du/har/lagt/nvdbapi-V3'")
+    print( "Eller flytt scriptet inn i mappen nvdbapi-V3/")
+else: 
+    print( 'Hurra, vi klarer importere nvdbapiv3')
 
-if not [ k for k in sys.path if 'nvdbapi' in k]: 
-    print( "Legger NVDB api til søkestien")
-    sys.path.append( '/mnt/c/data/leveranser/nvdbapi-V3' )
+
     
 
