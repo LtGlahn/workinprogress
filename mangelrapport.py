@@ -23,16 +23,35 @@ def lesmangel( filnavn ):
     |     21802  .82250887  .82254903       .153 FV403 S2D1 seq=19000 (K)
 
 
+    Sukk...  nytt format som ser slik ut: 
+
+    Detaljer - checkCoverage 904
+
+    Nasjonal vegdatabank- PRODUKSJON          2021-12-15 11.06
+
+    Manglende Bruksklasse normal
+    Kjørt:  15.12.2021 - 06:57 - 06:59
+    Antall feil: 8939
+    Parametere: ftid=904 categories=ERFK phases=VT trafficTypes=K roadTypes=-ferje 
+
+    ----------|----------|--------|------------|--------------------------|--------|-----------------------------------|
+    NetElemId| NStartPos| NEndPos|municipality|                roadSysRef|  length|                               vref|
+    ----------|----------|--------|------------|--------------------------|--------|-----------------------------------|
+        929|     0,613|   0,626|        4203|           KV55132 S3D1 m8|  13.067|     4203 KV55132 S3D1 seq=1000 (K)|
+        1569|     0,574|   0,640|        4212|          KV1041 S1D1 m352|  38.194|      4212 KV1041 S1D1 seq=5000 (K)|
+
+
     """
 
     lines = []
     data = [ ]
     with open( filnavn ) as f: 
         for line in f: 
-            mylist = line.split()
+            eiLinje = line.replace('|', '')      # Ser null verdi i disse skilletegnene, men det er nå meg
+            eiLinje = eiLinje.replace( ',', '.') # Ugrei blanding av desimalskilletegn, både , og .
+            mylist = eiLinje.split()
             if len( mylist ) > 4: 
                 lines.append( mylist )
-        
 
     # De to første radene har verdifulle metadata, så kommer dataverdiene iblandet litt tull og tøys
     miljo = lines[0][2]
@@ -138,6 +157,7 @@ def lesmangelrad( enkeltrad ):
 
 
     if isinstance(enkeltrad, str): 
+        enkeltrad = enkeltrad.replace( '|', '')
         mylist = enkeltrad.split()
     elif isinstance( enkeltrad, list ): 
         mylist = enkeltrad 
@@ -165,8 +185,11 @@ def lesmangelrad( enkeltrad ):
 
 if __name__ == '__main__': 
     print( 'Mangelrapport 1.0 - mer robust feilhåndtering')
+    t0 = datetime.now()
 
-    dd = lesmangel( 'checkCoverage_904_ERF_VT_K_-ferje.log')
+
+    # dd = lesmangel( 'checkCoverage_904_ERF_VT_K_-ferje.log')
+    dd = lesmangel( 'checkCoverage 904_20211215.LOG')
 
     mindf = pd.DataFrame( dd  ) 
 
@@ -189,10 +212,10 @@ if __name__ == '__main__':
     # minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
 
     mindf.drop( columns=['geometri', 'geometry'], inplace=True )
-    # mindf.to_excel( 'mangelrapport.xlsx', index=False  )
+    mindf.to_excel( 'mangelrapport.xlsx', index=False  )
 
-    # tidsbruk = datetime.now( ) - t0 
-    # print( "tidsbruk:", tidsbruk.total_seconds( ), "sekunder")
+    tidsbruk = datetime.now() - t0 
+    print( "tidsbruk:", tidsbruk.total_seconds(), "sekunder")
 
 
 
