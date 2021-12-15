@@ -47,9 +47,8 @@ def lesmangel( filnavn ):
     data = [ ]
     with open( filnavn ) as f: 
         for line in f: 
-            eiLinje = line.replace('|', '')      # Ser null verdi i disse skilletegnene, men det er nå meg
-            eiLinje = eiLinje.replace( ',', '.') # Ugrei blanding av desimalskilletegn, både , og .
-            mylist = eiLinje.split()
+            eiLinje = line.replace( ',', '.') # Ugrei blanding av desimalskilletegn, både , og .
+            mylist = eiLinje.split( '|' )
             if len( mylist ) > 4: 
                 lines.append( mylist )
 
@@ -157,9 +156,8 @@ def lesmangelrad( enkeltrad ):
 
 
     if isinstance(enkeltrad, str): 
-        enkeltrad = enkeltrad.replace( '|', '')
         enkeltrad = enkeltrad.replace( ',', '.')
-        mylist = enkeltrad.split()
+        mylist = enkeltrad.split('|')
     elif isinstance( enkeltrad, list ): 
         mylist = enkeltrad 
     else: 
@@ -171,8 +169,9 @@ def lesmangelrad( enkeltrad ):
             returdata['sqldump_vlenkid'] =      int( mylist[0]  )
             returdata['sqldump_frapos']  =    float( mylist[1]  )
             returdata['sqldump_tilpos']  =    float( mylist[2]  )
-            returdata['sqldump_length']  =    float( mylist[3]  )
-            returdata['sqldump_vref']    = ' '.join( mylist[4:] )
+            returdata['sqldump_kommune']  =   int(   mylist[3]  )
+            returdata['sqldump_vref']    =           mylist[4].strip() 
+            returdata['sqldump_length']  =    float( mylist[5]  )
 
         except ValueError: 
             return None 
@@ -210,7 +209,7 @@ if __name__ == '__main__':
     mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
     minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
     minGdf.drop( columns='geometri', inplace=True )
-    # minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
+    minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
 
     mindf.drop( columns=['geometri', 'geometry'], inplace=True )
     mindf.to_excel( 'mangelrapport.xlsx', index=False  )
