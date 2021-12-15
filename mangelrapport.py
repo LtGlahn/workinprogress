@@ -158,6 +158,7 @@ def lesmangelrad( enkeltrad ):
 
     if isinstance(enkeltrad, str): 
         enkeltrad = enkeltrad.replace( '|', '')
+        enkeltrad = enkeltrad.replace( ',', '.')
         mylist = enkeltrad.split()
     elif isinstance( enkeltrad, list ): 
         mylist = enkeltrad 
