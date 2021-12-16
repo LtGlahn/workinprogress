@@ -177,9 +177,9 @@ def lesmangelrad( enkeltrad ):
             returdata['sqldump_vlenkid'] =      int( mylist[0]  )
             returdata['sqldump_frapos']  =    float( mylist[1]  )
             returdata['sqldump_tilpos']  =    float( mylist[2]  )
-            returdata['sqldump_kommune']  =   int(   mylist[3]  )
-            returdata['sqldump_vref']    =           mylist[4].strip() 
-            returdata['sqldump_length']  =    float( mylist[5]  )
+            returdata['sqldump_kommune']  =   int(   mylist[-4]  )
+            returdata['sqldump_vref']    =           mylist[-3].strip() 
+            returdata['sqldump_length']  =    float( mylist[-2]  )
 
         except ValueError: 
             return None 
@@ -191,40 +191,52 @@ def lesmangelrad( enkeltrad ):
 
     return returdata 
 
+###################################################
+## 
+## Scriptet starter her
+##
+#######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 1.0 - mer robust feilhåndtering')
+    print( 'Mangelrapport 2.1 - formatet endrer seg visst fra dag til dag')
     t0 = datetime.now()
 
-
-    # dd = lesmangel( 'checkCoverage_904_ERF_VT_K_-ferje.log')
-    dd = lesmangel( 'checkCoverage 904_20211215.LOG')
+    #####################################################
+    ## 
+    ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
+    ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
+    FILNAVN = 'checkCoverage 904_20211216 (2).LOG'
+    dd = lesmangel(  FILNAVN )
 
     mindf = pd.DataFrame( dd  ) 
 
-    mindf['gate'] = mindf['gate'].apply( lambda x : x['navn'] if isinstance(x, dict)  and 'navn' in x else ''  )
+    if len( mindf ) > 0: 
 
-    col = [ 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'gate',  'stedfesting', 
-            'vegkategori', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 
-            'sqldump_length', 'sqldump_vref', 'sqldump_miljo', 'sqldump_dato', 
-            'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 
-            'sqldump_datauttak', 'sqldump_parametre', 
-            'start_wkt', 'start_vref', 'slutt_wkt', 'slutt_vref', 
-            'kortform', 'type',  'typeVeg', 'geometri' ]
+        if 'gate' in mindf.columns: 
+            mindf['gate'] = mindf['gate'].apply( lambda x : x['navn'] if isinstance(x, dict)  and 'navn' in x else ''  )
 
-    mindf = mindf[col].copy()
+        col = [ 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'gate',  'stedfesting', 
+                'vegkategori', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 
+                'sqldump_length', 'sqldump_vref', 'sqldump_miljo', 'sqldump_dato', 
+                'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 
+                'sqldump_datauttak', 'sqldump_parametre', 
+                'start_wkt', 'start_vref', 'slutt_wkt', 'slutt_vref', 
+                'kortform', 'type',  'typeVeg', 'geometri' ]
 
-    mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ], ascending=[False, False, True, True], inplace=True )
-    
-    mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
-    minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
-    minGdf.drop( columns='geometri', inplace=True )
-    minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
+        mindf = mindf[col].copy()
 
-    mindf.drop( columns=['geometri', 'geometry'], inplace=True )
-    mindf.to_excel( 'mangelrapport.xlsx', index=False  )
+        mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ], ascending=[False, False, True, True], inplace=True )
+        
+        mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
+        minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
+        minGdf.drop( columns='geometri', inplace=True )
+        minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
 
-    tidsbruk = datetime.now() - t0 
-    print( "tidsbruk:", tidsbruk.total_seconds(), "sekunder")
+        mindf.drop( columns=['geometri', 'geometry'], inplace=True )
+        mindf.to_excel( 'mangelrapport.xlsx', index=False  )
 
+        tidsbruk = datetime.now() - t0 
+        print( "tidsbruk:", tidsbruk.total_seconds(), "sekunder")
 
+    else: 
+        print( f'Fikk ikke lest inn gyldige data fra {FILNAVN}')
 
