@@ -46,18 +46,23 @@ def lesmangel( filnavn ):
     lines = []
     data = [ ]
     with open( filnavn ) as f: 
-        for line in f: 
-            eiLinje = line.replace( ',', '.') # Ugrei blanding av desimalskilletegn, både , og .
-            mylist = eiLinje.split( '|' )
-            if len( mylist ) > 4: 
-                lines.append( mylist )
+        for linjenr, line in enumerate(f):
+            if linjenr < 10: 
+                lines.append( line )
+            else: 
+                eiLinje = line.replace( ',', '.') # Ugrei blanding av desimalskilletegn, både , og .
+                mylist = eiLinje.split( '|' )
+                if len( mylist ) > 4: 
+                    lines.append( mylist )
 
-    # De to første radene har verdifulle metadata, så kommer dataverdiene iblandet litt tull og tøys
-    miljo = lines[0][2]
-    dato  = lines[0][3]
-    klokke = lines[0][4]
+    # De  første radene har verdifulle metadata, så kommer dataverdiene iblandet litt tull og tøys
+    miljo = lines[2].split()[2]
+    dato  = lines[2].split()[3]
+    klokke = lines[2].split()[4]
     klokke = klokke.replace( '.', ':')
-    beskrivelse = ' '.join( lines[1] )
+    beskrivelse = lines[4].strip()
+    datauttak = lines[5].strip()
+    parametre = lines[7].strip()
 
     count = 0 
     for ll in lines: 
@@ -68,6 +73,9 @@ def lesmangel( filnavn ):
             cc['sqldump_klokke']      = klokke
             cc['sqldump_beskrivelse'] = beskrivelse
             cc['sqldump_datarad']     = count 
+            cc['sqldump_datauttak']   = datauttak
+            cc['sqldump_parametre']   = parametre
+
 
             # Henter data for start- og sluttpunkt 
             p1 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
@@ -199,6 +207,7 @@ if __name__ == '__main__':
             'vegkategori', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 
             'sqldump_length', 'sqldump_vref', 'sqldump_miljo', 'sqldump_dato', 
             'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 
+            'sqldump_datauttak', 'sqldump_parametre', 
             'start_wkt', 'start_vref', 'slutt_wkt', 'slutt_vref', 
             'kortform', 'type',  'typeVeg', 'geometri' ]
 
