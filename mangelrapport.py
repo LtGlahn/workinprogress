@@ -3,7 +3,7 @@ import pdb
 from datetime import datetime
 
 from shapely import wkt 
-from shapely.geometry import LineString 
+from shapely.geometry import LineString, MultiLineString
 # from shapely.ops import unary_union
 import pandas as pd 
 import geopandas as gpd 
@@ -65,7 +65,7 @@ def lesmangel( filnavn ):
     parametre = lines[7].strip()
 
     count = 0 
-    for ll in lines: 
+    for ll in lines[0:50]: 
         cc = lesmangelrad( ll )
         if cc:
             cc['sqldump_miljo']       = miljo 
@@ -191,13 +191,14 @@ def lesmangelrad( enkeltrad ):
 
     return returdata 
 
+
 ###################################################
 ## 
 ## Scriptet starter her
 ##
 #######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 2.1 - formatet endrer seg visst fra dag til dag')
+    print( 'Mangelrapport 2.2 - Legger på ny kolonne for vegkategori ')
     t0 = datetime.now()
 
     #####################################################
@@ -209,30 +210,54 @@ if __name__ == '__main__':
 
     mindf = pd.DataFrame( dd  ) 
 
+    # Finner objekttype
+    objekttype = mindf.iloc[0]['sqldump_parametre'].split('=')[1].split()[0]
+    fanenavn = 'hullBk' + objekttype
+
     if len( mindf ) > 0: 
 
         if 'gate' in mindf.columns: 
             mindf['gate'] = mindf['gate'].apply( lambda x : x['navn'] if isinstance(x, dict)  and 'navn' in x else ''  )
 
-        col = [ 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'gate',  'stedfesting', 
+        # Legger på vegkategori
+        # mindf['vegkategori'] = mindf['vref'].apply( lambda x: getFirstChar(x) )
+        mindf['vegnr'] = mindf['vref'].apply( lambda x: x.split()[0] if isinstance(x, str) and len(x) > 0 else '' )
+
+        col = [ 'vegkategori', 'vegnr', 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'gate',  'stedfesting', 
                 'vegkategori', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 
                 'sqldump_length', 'sqldump_vref', 'sqldump_miljo', 'sqldump_dato', 
                 'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 
                 'sqldump_datauttak', 'sqldump_parametre', 
-                'start_wkt', 'start_vref', 'slutt_wkt', 'slutt_vref', 
                 'kortform', 'type',  'typeVeg', 'geometri' ]
 
-        mindf = mindf[col].copy()
+        slettecol = list( set( mindf.columns ) - set(col) )
+        mindf.drop( columns=slettecol, inplace=True )
 
-        mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ], ascending=[False, False, True, True], inplace=True )
+        mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ],
+                ascending=[     False,              False,           True,               True], inplace=True )
         
         mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
         minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
         minGdf.drop( columns='geometri', inplace=True )
-        minGdf.to_file( 'mangelrapport.gpkg', layer='mangelrapport-ufiltrert', driver="GPKG")  
+        minGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_alt' + objekttype + 'alle', driver="GPKG")  
 
         mindf.drop( columns=['geometri', 'geometry'], inplace=True )
-        mindf.to_excel( 'mangelrapport.xlsx', index=False  )
+        mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
+
+        # Vil ha en feature per rad i orginaldatasettet - aggregerer geometri m.m. 
+        aggGdf = minGdf[ minGdf['sqldump_length'] >= 1  ].dissolve( by=[ 'sqldump_datarad'], aggfunc={ 'lengde' : 'sum', 
+            'vegnr' : 'unique', 'fylke' : 'first', 'kommune' : 'first',  'sqldump_length' : 'first' , 
+            'vegkategori' : 'unique', 'trafikantgruppe' : 'unique'}, as_index=False )
+        aggGdf['vegnr'] = aggGdf['vegkategori'].apply( lambda x :  ','.join( x ) )  
+        aggGdf['vegkategori'] = aggGdf['vegkategori'].apply( lambda x :  ','.join( x ) )  
+        aggGdf['trafikantgruppe'] = aggGdf['trafikantgruppe'].apply( lambda x :  ','.join( x ) ) 
+        aggGdf['geometry'] = aggGdf['geometry'].apply( lambda x : MultiLineString( [x] ) if x.type == 'LineString' else x )
+
+        aggGdf.sort_values( by=['trafikantgruppe', 'lengde'], ascending=[ False, False ], inplace=True   )
+
+        aggGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_filtrert', driver='GPKG')
+
+
 
         tidsbruk = datetime.now() - t0 
         print( "tidsbruk:", tidsbruk.total_seconds(), "sekunder")
