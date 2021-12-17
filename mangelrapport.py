@@ -65,7 +65,8 @@ def lesmangel( filnavn ):
     parametre = lines[7].strip()
 
     count = 0 
-    for ll in lines[0:50]: 
+#     for ll in lines[0:50]:  # Debugvariant, kun ta de første N linjene
+    for ll in lines:          # Hele datasettet
         cc = lesmangelrad( ll )
         if cc:
             cc['sqldump_miljo']       = miljo 
