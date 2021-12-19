@@ -199,7 +199,7 @@ def lesmangelrad( enkeltrad ):
 ##
 #######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 2.2 - Legger på ny kolonne for vegkategori ')
+    print( 'Mangelrapport 2.3 - Nytt lag med filtrerte og sammenstilte data i gpkg ')
     t0 = datetime.now()
 
     #####################################################
@@ -211,18 +211,19 @@ if __name__ == '__main__':
 
     mindf = pd.DataFrame( dd  ) 
 
-    # Finner objekttype
-    objekttype = mindf.iloc[0]['sqldump_parametre'].split('=')[1].split()[0]
-    fanenavn = 'hullBk' + objekttype
 
     if len( mindf ) > 0: 
+
+        # Finner objekttype
+        objekttype = mindf.iloc[0]['sqldump_parametre'].split('=')[1].split()[0]
+        fanenavn = 'hullBk' + objekttype
 
         if 'gate' in mindf.columns: 
             mindf['gate'] = mindf['gate'].apply( lambda x : x['navn'] if isinstance(x, dict)  and 'navn' in x else ''  )
 
         # Legger på vegkategori
         # mindf['vegkategori'] = mindf['vref'].apply( lambda x: getFirstChar(x) )
-        mindf['vegnr'] = mindf['vref'].apply( lambda x: x.split()[0] if isinstance(x, str) and len(x) > 0 else '' )
+        mindf['vegnr'] = mindf['vref'].apply( lambda x: x.split()[0] if isinstance(x, str) and len(x) > 0 else ' ' )
 
         col = [ 'vegkategori', 'vegnr', 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'gate',  'stedfesting', 
                 'vegkategori', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 
@@ -233,6 +234,8 @@ if __name__ == '__main__':
 
         slettecol = list( set( mindf.columns ) - set(col) )
         mindf.drop( columns=slettecol, inplace=True )
+        mindf['vegnr'].fillna(  ' ', inplace=True )
+        mindf['vegkategori'].fillna( ' ', inplace=True )
 
         mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ],
                 ascending=[     False,              False,           True,               True], inplace=True )
@@ -246,22 +249,27 @@ if __name__ == '__main__':
         mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
 
         # Vil ha en feature per rad i orginaldatasettet - aggregerer geometri m.m. 
-        aggGdf = minGdf[ minGdf['sqldump_length'] >= 1  ].dissolve( by=[ 'sqldump_datarad'], aggfunc={ 'lengde' : 'sum', 
+        # Ignorerer dem som mangler vegnr, vegkategori m.m. 
+        temp = minGdf.dropna( subset=['vegkategori', 'vegkategori', 'trafikantgruppe']  )
+        aggGdf = temp[ temp['sqldump_length'] >= 1  ].dissolve( by=[ 'sqldump_datarad'], aggfunc={ 'lengde' : 'sum', 
             'vegnr' : 'unique', 'fylke' : 'first', 'kommune' : 'first',  'sqldump_length' : 'first' , 
             'vegkategori' : 'unique', 'trafikantgruppe' : 'unique'}, as_index=False )
-        aggGdf['vegnr'] = aggGdf['vegkategori'].apply( lambda x :  ','.join( x ) )  
-        aggGdf['vegkategori'] = aggGdf['vegkategori'].apply( lambda x :  ','.join( x ) )  
-        aggGdf['trafikantgruppe'] = aggGdf['trafikantgruppe'].apply( lambda x :  ','.join( x ) ) 
+        aggGdf.dropna( subset=['kommune'], inplace=True )
+        
+        aggGdf['vegnr'] = aggGdf['vegnr'].apply(               lambda x :  ','.join( list(x) ) )  
+        aggGdf['vegkategori'] = aggGdf['vegkategori'].apply(         lambda x :  ','.join( list(x) ) )  
+        aggGdf['trafikantgruppe'] = aggGdf['trafikantgruppe'].apply( lambda x :  ','.join( list(x) ) ) 
         aggGdf['geometry'] = aggGdf['geometry'].apply( lambda x : MultiLineString( [x] ) if x.type == 'LineString' else x )
 
         aggGdf.sort_values( by=['trafikantgruppe', 'lengde'], ascending=[ False, False ], inplace=True   )
 
         aggGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_filtrert', driver='GPKG')
-
-
+        aggGdf[ (aggGdf['vegkategori'].str.contains('E')) | (aggGdf['vegkategori'].str.contains('R')) ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_ER', driver='GPKG')
+        aggGdf[ aggGdf['vegkategori'].str.contains('F') ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_F', driver='GPKG')
+        aggGdf[ aggGdf['vegkategori'].str.contains('K')].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_K', driver='GPKG')
 
         tidsbruk = datetime.now() - t0 
-        print( "tidsbruk:", tidsbruk.total_seconds(), "sekunder")
+        print( F"tidsbruk Bk{objekttype}: {tidsbruk.total_seconds()} sekunder")
 
     else: 
         print( f'Fikk ikke lest inn gyldige data fra {FILNAVN}')
