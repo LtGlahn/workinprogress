@@ -64,10 +64,13 @@ def lesmangel( filnavn ):
     datauttak = lines[5].strip()
     parametre = lines[7].strip()
 
+    # Rekkefølgen på kolonner varierer, så vi må finne ut hvilke kolonner som er hva 
+    kolonneposisjoner = finnkolonnepos(  lines[10]  )
+
     count = 0 
-#     for ll in lines[0:50]:  # Debugvariant, kun ta de første N linjene
+    # for ll in lines[0:50]:  # Debugvariant, kun ta de første N linjene
     for ll in lines:          # Hele datasettet
-        cc = lesmangelrad( ll )
+        cc = lesmangelrad( ll, posisjoner=kolonneposisjoner )
         if cc:
             cc['sqldump_miljo']       = miljo 
             cc['sqldump_dato']        = dato
@@ -150,13 +153,50 @@ def lesmangel( filnavn ):
 
     return data 
 
+def finnkolonnepos( kolonnerad ): 
+    """
+    Finner rekkefølge på kolonne i dagens SQL-dump 
+    """
+
+    # Slik kolonnene var organisert 20.12.2021
+    posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2, 'kommune' : 4, 'vref' : 3, 'length' : 5  }
+
+    # Oversettelse mellom de begrepene vi bruker og de kryptiske navnene i SQL-dumpen
+    oversettelse={ 'vlenkid' : 'netelemid', 
+                    'frapos' : 'nstartpos', 'tilpos' : 'nendpos', 
+                    'kommune' : 'municipality', 
+                    'vref' : 'roadsysref', 
+                    'length' : 'length'  
+                    }
+
+    kolonner = [ x.strip().lower() for x in kolonnerad ]
+
+    for myKey in posisjoner: 
+        nypos = __finnListeIndex(  kolonner, oversettelse[ myKey  ]  )
+        if nypos: 
+            posisjoner[myKey] = nypos 
+
+    return posisjoner
+
+def __finnListeIndex( minliste, mintekst ): 
+    """
+    Hjelpefunksjon som finner indeks til det første elementet i minListe som matcher mintekst 
+    Som er mer kronglete enn det burde vært, ref   https://stackoverflow.com/a/45808300
+    """
+    try:
+        return minliste.index(mintekst)
+    except ValueError:
+        return None
 
 
-def lesmangelrad( enkeltrad ): 
+
+def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2, 'kommune' : 4, 'vref' : 3, 'length' : 5  } ): 
     """
     Parser en enkelt rad fra mangelrapport
     
     Leser mangelrapport og returnerer dictionary med datavedier for veglenkeid, posisjon fra og til og VREF
+
+    nøkkelord posisjoner=dictionary angir hvilke kolonner som er hva
     """
 
     returdata = None 
@@ -175,12 +215,12 @@ def lesmangelrad( enkeltrad ):
     if len( mylist ) > 5: 
         returdata = { }
         try: 
-            returdata['sqldump_vlenkid'] =      int( mylist[0]  )
-            returdata['sqldump_frapos']  =    float( mylist[1]  )
-            returdata['sqldump_tilpos']  =    float( mylist[2]  )
-            returdata['sqldump_kommune']  =   int(   mylist[-4]  )
-            returdata['sqldump_vref']    =           mylist[-3].strip() 
-            returdata['sqldump_length']  =    float( mylist[-2]  )
+            returdata['sqldump_vlenkid'] =      int( mylist[ posisjoner['vlenkid'] ])
+            returdata['sqldump_frapos']  =    float( mylist[ posisjoner['frapos']  ])
+            returdata['sqldump_tilpos']  =    float( mylist[ posisjoner['tilpos']  ])
+            returdata['sqldump_kommune']  =   int(   mylist[ posisjoner['kommune'] ])
+            returdata['sqldump_vref']    =           mylist[ posisjoner['vref']  ].strip() 
+            returdata['sqldump_length']  =    float( mylist[ posisjoner['length']]  )
 
         except ValueError: 
             return None 
@@ -199,14 +239,14 @@ def lesmangelrad( enkeltrad ):
 ##
 #######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 2.3 - Nytt lag med filtrerte og sammenstilte data i gpkg ')
+    print( 'Mangelrapport 2.4 - Takler at kolonnene bytter plass (såfremt kolonnedefinisjonen står på linje 11)')
     t0 = datetime.now()
 
     #####################################################
     ## 
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
-    FILNAVN = 'checkCoverage 904_20211216 (2).LOG'
+    FILNAVN = 'checkCoverage 904_20211220.LOG'
     dd = lesmangel(  FILNAVN )
 
     mindf = pd.DataFrame( dd  ) 
