@@ -7,6 +7,7 @@ from shapely.geometry import LineString, MultiLineString
 # from shapely.ops import unary_union
 import pandas as pd 
 import geopandas as gpd 
+import xlsxwriter
 
 import STARTHER 
 import nvdbapiv3
@@ -239,14 +240,14 @@ def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' 
 ##
 #######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 2.4 - Takler at kolonnene bytter plass (såfremt kolonnedefinisjonen står på linje 11)')
+    print( 'Mangelrapport 2.5 - Aggregerer per vegnummer, mere metadata i excelfil')
     t0 = datetime.now()
 
     #####################################################
     ## 
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
-    FILNAVN = 'checkCoverage 904_20211220.LOG'
+    FILNAVN = 'checkCoverage 904_20220111.LOG'
     dd = lesmangel(  FILNAVN )
 
     mindf = pd.DataFrame( dd  ) 
@@ -283,33 +284,49 @@ if __name__ == '__main__':
         mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
         minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
         minGdf.drop( columns='geometri', inplace=True )
-        minGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_alt' + objekttype + 'alle', driver="GPKG")  
+        minGdf.to_file( 'mangelrapport.gpkg', layer='debug_' + fanenavn, driver="GPKG")  
 
         mindf.drop( columns=['geometri', 'geometry'], inplace=True )
-        mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
+        # mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
 
-        # Vil ha en feature per rad i orginaldatasettet - aggregerer geometri m.m. 
+        # Vil ha en feature per vegnummer og kommune i orginaldatasettet - aggregerer geometri m.m. 
         # Ignorerer dem som mangler vegnr, vegkategori m.m. 
-        temp = minGdf.dropna( subset=['vegkategori', 'vegkategori', 'trafikantgruppe']  )
-        aggGdf = temp[ temp['sqldump_length'] >= 1  ].dissolve( by=[ 'sqldump_datarad'], aggfunc={ 'lengde' : 'sum', 
-            'vegnr' : 'unique', 'fylke' : 'first', 'kommune' : 'first',  'sqldump_length' : 'first' , 
-            'vegkategori' : 'unique', 'trafikantgruppe' : 'unique'}, as_index=False )
-        aggGdf.dropna( subset=['kommune'], inplace=True )
-        
-        aggGdf['vegnr'] = aggGdf['vegnr'].apply(               lambda x :  ','.join( list(x) ) )  
+        temp = minGdf.dropna( subset=['vegkategori']  )
+        temp['trafikantgruppe'].fillna( ' ', inplace=True )
+
+        aggGdf = temp[ (temp['sqldump_length'] >= 1) & (temp['lengde'] >= 1)  ].dissolve( by=[ 'vegnr', 'kommune'], aggfunc={ 'lengde' : 'sum',
+                 'fylke' : 'first',  'sqldump_length' : 'first' , 'vegkategori' : 'unique', 'trafikantgruppe' : 'unique'}, as_index=False )
+                
         aggGdf['vegkategori'] = aggGdf['vegkategori'].apply(         lambda x :  ','.join( list(x) ) )  
         aggGdf['trafikantgruppe'] = aggGdf['trafikantgruppe'].apply( lambda x :  ','.join( list(x) ) ) 
         aggGdf['geometry'] = aggGdf['geometry'].apply( lambda x : MultiLineString( [x] ) if x.type == 'LineString' else x )
 
         aggGdf.sort_values( by=['trafikantgruppe', 'lengde'], ascending=[ False, False ], inplace=True   )
 
-        aggGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_filtrert', driver='GPKG')
+        # aggGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_filtrert', driver='GPKG')
         aggGdf[ (aggGdf['vegkategori'].str.contains('E')) | (aggGdf['vegkategori'].str.contains('R')) ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_ER', driver='GPKG')
         aggGdf[ aggGdf['vegkategori'].str.contains('F') ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_F', driver='GPKG')
         aggGdf[ aggGdf['vegkategori'].str.contains('K')].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_K', driver='GPKG')
 
         tidsbruk = datetime.now() - t0 
         print( F"tidsbruk Bk{objekttype}: {tidsbruk.total_seconds()} sekunder")
+
+        # Summerer statistikk per vegkategori og per kommune: 
+        aggGdf['antall'] = 1 
+        statistikk = aggGdf.groupby( ['vegkategori']  ).agg({ 'antall' : 'count', 'lengde' : 'sum' } )
+        statistikk_perkommune = aggGdf.groupby( ['vegkategori', 'kommune']  ).agg( {'antall' : 'count', 'lengde' : 'sum'}  )
+        metadata = metadata = pd.DataFrame( { 'verdi' : [ str(t0), FILNAVN, fanenavn ] }, index=['Dato', 'Filnavn', 'Type' ] )
+
+        # Skriver til excel: 
+        writer = pd.ExcelWriter( 'mangelrapport.xlsx', engine='xlsxwriter')
+
+        statistikk.to_excel( writer, sheet_name='Statistikk')
+        aggGdf.to_excel( writer, sheet_name='Mangelrapport'  )
+        metadata.to_excel( writer, sheet_name='Metadata')
+        statistikk_perkommune.to_excel( writer, sheet_name='Statistikk per kommune')
+        mindf.to_excel( writer, sheet_name='debug_' + fanenavn)
+
+        writer.save()
 
     else: 
         print( f'Fikk ikke lest inn gyldige data fra {FILNAVN}')
