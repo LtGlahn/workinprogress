@@ -234,6 +234,38 @@ def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' 
     return returdata 
 
 
+def sortervegkategori( vegkategori ):
+    """
+    Sorterer på vegkategori i rekkefølgen E-R-F-K-P-S 
+    """
+    minsort = { 'E' : 1, 'R' : 2, 'F' : 3, 'K' : 4, 'P' : 5, 'S' : 6}
+    if vegkategori in minsort:
+        return minsort[vegkategori]
+    return 7
+
+def finnMeter( vref, returnerTilmeter=False  ): 
+    """
+    Finner frameter eller tilmeter basert på vegreferanse
+    """
+    fraMeter = ''
+    tilMeter = ''
+
+    if vref and isinstance( vref, str) and len( vref ) > 5: 
+        splitt1 = vref.split( 'm')
+        if len( splitt1 ) > 1: 
+            s2 = splitt1[-1]
+            if '-' in s2: 
+                splitt2 = s2.split('-')
+                fraMeter = splitt2[0]
+                if len( splitt2 ) > 1: 
+                    tilMeter = splitt2[1]
+
+    if returnerTilmeter: 
+        return tilMeter
+    else: 
+        return fraMeter 
+
+
 ###################################################
 ## 
 ## Scriptet starter her
@@ -277,9 +309,11 @@ if __name__ == '__main__':
         mindf.drop( columns=slettecol, inplace=True )
         mindf['vegnr'].fillna(  ' ', inplace=True )
         mindf['vegkategori'].fillna( ' ', inplace=True )
+        mindf['sortering'] = mindf['vegkategori'].apply( lambda x : sortervegkategori( x ))
 
-        mindf.sort_values( by=['trafikantgruppe',  'sqldump_length', 'sqldump_datarad', 'sqldump_frapos' ],
-                ascending=[     False,              False,           True,               True], inplace=True )
+
+        mindf.sort_values( by=['sortering', 'kommune', 'lengde', ],
+                ascending=[     True,        True,      True ], inplace=True )
         
         mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
         minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
@@ -288,6 +322,10 @@ if __name__ == '__main__':
 
         mindf.drop( columns=['geometri', 'geometry'], inplace=True )
         # mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
+
+        # Føyer på fra- og tilmeter 
+        mindf['Fra m'] = mindf['vref'].apply( lambda x : mangelrapport.finnMeter(x) )
+        mindf['Til m'] = mindf['vref'].apply( lambda x : mangelrapport.finnMeter(x, returnerTilmeter=True) )
 
         # Vil ha en feature per vegnummer og kommune i orginaldatasettet - aggregerer geometri m.m. 
         # Ignorerer dem som mangler vegnr, vegkategori m.m. 
@@ -301,7 +339,7 @@ if __name__ == '__main__':
         aggGdf['trafikantgruppe'] = aggGdf['trafikantgruppe'].apply( lambda x :  ','.join( list(x) ) ) 
         aggGdf['geometry'] = aggGdf['geometry'].apply( lambda x : MultiLineString( [x] ) if x.type == 'LineString' else x )
 
-        aggGdf.sort_values( by=['trafikantgruppe', 'lengde'], ascending=[ False, False ], inplace=True   )
+        aggGdf.sort_values( by=['trafikantgruppe', 'vegnummer', 'lengde'], ascending=[ False, True, False ], inplace=True   )
 
         # aggGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_filtrert', driver='GPKG')
         aggGdf[ (aggGdf['vegkategori'].str.contains('E')) | (aggGdf['vegkategori'].str.contains('R')) ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_ER', driver='GPKG')
@@ -320,11 +358,15 @@ if __name__ == '__main__':
         # Skriver til excel: 
         writer = pd.ExcelWriter( 'mangelrapport.xlsx', engine='xlsxwriter')
 
-        statistikk.to_excel( writer, sheet_name='Statistikk')
-        aggGdf.to_excel( writer, sheet_name='Mangelrapport'  )
-        metadata.to_excel( writer, sheet_name='Metadata')
-        statistikk_perkommune.to_excel( writer, sheet_name='Statistikk per kommune')
-        mindf.to_excel( writer, sheet_name='debug_' + fanenavn)
+        # Døper om kolonner så de matcher brukerønskene 
+        mindf.rename( columns={ 'vref' :  'Vegreferanse', 'lengde' : 'Lengde hull', 'kommune' : 'Kommune',  'gate' : 'Gate', 'vegkategori' : 'Vegkategori'   })
+        col2 = [ 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'Gate', 'Vegkategori', 'typeVeg', 'trafikantgruppe' ]
+        mindf[ mindf['Lengde hull'] >= 1][col2].to_excel( writer, sheet_name= fanenavn, index=False )
+
+        statistikk.to_excel( writer, sheet_name='Statistikk', index=True )
+        aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'lengde', 'trafikantgruppe']].to_excel( writer, sheet_name='Annen visning '+fanenavn, index=False  )
+        metadata.to_excel( writer, sheet_name='Metadata', index=True  )
+        statistikk_perkommune.to_excel( writer, sheet_name='Statistikk per kommune', index=True )
 
         writer.save()
 
