@@ -9,7 +9,7 @@ fylles med "sekkepost-verdier", dvs den kombinasjonen av
 bruksklasse-verdier som brukes til oppføringen "Øvrige veger". Dette er den mest vanlige
 dataverdi-kombinasjonen innafor den kommunen, og vegene her skal IKKE ha strekningsbeskrivelse. 
 (Strekningsbeskrivelse brukes til å skille ut kommunalveger det er noe ekstra med, enten ved at de har
-avvikene BK eller for å fremheve en viktig veg med sin egen )
+avvikene BK eller for at en viktig veg fremheves med sin egen oppføring i veglistene)
 
 Så logikken her blir følgende: 
 
