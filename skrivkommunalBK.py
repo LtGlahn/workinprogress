@@ -45,7 +45,9 @@ Så logikken her blir følgende:
         for hvilken dataverdi dette skal være
         - Tillatt vogntoglengde er nesten identisk: Den _*kan*_ ha de større verdiene 22 og 24 m på BK tømmer, ellers er den lik 
         på tvers av de tre objekttypene. 
-        - BK Spesilaltransport har i tillegg egenskapen Veggruppe (A, B, IKKE )
+        - BK Spesilaltransport har i tillegg egenskapen Veggruppe (A, B, IKKE - eventuelt mangler data). 
+          og "mangler data" er tydeligvis en OK verdi, sjekk f.eks "øvrige veger" for Kristiansand og Vennesla 
+          vegliste Spesialtransport. 
         - BK Tømmertransport kan som før nevnt ha større verdi 22m og 24m på egenskapen "Maks tillatt vogntoglengde". 
           I tillegg kommer egenskapene 
                 - "maks totalvekt" (som stort sett er identisk med tall nr 2 i BK-verdien, men 
@@ -58,4 +60,226 @@ Så logikken her blir følgende:
     Med 2 * 3 = 6 objekttyper og en håndfull egenskaper per objekttype så er kaospotensialet absolutt til stede, 
     så det er absolutt mye å hente på å lage en god, datakatalog-drevet løsning. 
 
+
 """
+
+from copy import deepcopy
+import pdb
+
+import pandas as pd
+import geopandas as gpd 
+import fiona
+
+import STARTHER
+import skrivnvdb 
+from nvdbapiv3 import  nvdbFagdata, apiforbindelse 
+
+def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  ): 
+    """
+    Finner sekkepost-fordelig av bruksklasseverdier på vegnett i en kommune
+
+    Leser BK offisiell og uoffisiell for normal, tømmer og spesialtransport-klassene. 
+    Sjekker at disse er inbyrdes enige om hva som er gode sekkepost-verdier, skriver ADVARSEL dersom 
+    de er innbyrdes uenige
+
+    Logikken her må ta høyde for at egenskapsverdier som strengt tatt skal inngå i veglistene _*ikke finnes*_ for 
+    den kommunen du vurderer. F.eks. Veggruppe er ikke valgt for "Øvrige veger i Kristiansand, men 
+    i Vennesla er det veggruppe A. Og "Bruksklasse vinter" er ofte fraværende, men ikke alltid. 
+
+    Eksakt hvilke data som returneres avhenger av hva du ber om med nøkkeordene inkluder_offisiell og inkluder_uoffisiell, 
+    samt hva som finnes av data i denne kommunen.
+
+      inkluder_offisiell=True : Hent offisielle data for BK normal, tømmer- og spesialtransport (NVDB objekttype 904, 900 og 902)
+
+      inkluder_uoffisiell=True : Hent uoffisielle data for BK normal, tømmer- og spesialtransport (NVDB objekttype 904, 900 og 902)
+
+    ARGUMENTS 
+      kommunenummer : int, kommunenummer
+
+    KEYWORDS 
+      inkluder_offisiell : True eller False 
+      
+      inkluder_uoffisiell : True eller False 
+
+      miljo : 'prodles', 'testles' eller 'utvles'. Hvilket miljø (produksjon, test eller utvikling) som vi henter data fra 
+
+      username : 'jajens' Brukernavn som brukes til innlogging NVDB api LES, for angitt miljø
+
+    RETURNS
+      skrivemal : Dictionary med de dataverdiene som skal skrives til NVDBAPISKRIV for de stedene der vi mangler 
+      BK på kommunal veg. 
+
+      Eksempel for normaltransport i Vennesla: 
+      python> skrivemal = finnSekkepost( 4223, inkluder_offisiell=True, inkluder_uoffisiell=False )     
+      python> skrivemal['normal'] 
+
+              {
+                "normal": {
+                          "metadata": {
+                              "type": {
+                                  "id": 904,
+                                  "navn": "Bruksklasse, normaltransport"
+                              }
+                          },
+                          "egenskaper": [
+                              {
+                                  "id": 10901,
+                                  "navn": "Bruksklasse",
+                                  "verdi": "Bk10 - 50 tonn"
+                              },
+                              {
+                                  "id": 10913,
+                                  "navn": "Maks vogntoglengde",
+                                  "verdi": "19,50"
+                              },
+                              {
+                                  "id": 11210,
+                                  "navn": "Vegliste gjelder alltid",
+                                  "verdi": "Se www.vegvesen.no/veglister"
+                              }
+                          ]
+                  }
+              }
+
+    """
+
+    # Henter datakatalog-definisjoner 
+    forb = apiforbindelse()
+    dakat = { }
+
+    if inkluder_offisiell:
+
+      dakat['normal'] = forb.les( '/vegobjekttyper/904').json()
+      dakat['tommer'] = forb.les( '/vegobjekttyper/900').json()
+      dakat['spesial'] = forb.les( '/vegobjekttyper/902').json()
+
+
+    if inkluder_uoffisiell: 
+      print( f"Logg inn i miljø {miljo} ")
+      forb.login( miljo='prodles', username='jajens')
+
+      dakat['uoff_normal'] = forb.les( '/vegobjekttyper/905').json()
+      dakat['uoff_tommer'] = forb.les( '/vegobjekttyper/901').json()
+      dakat['uoff_spesial'] = forb.les( '/vegobjekttyper/903').json()
+
+    temp_dataframes = []
+    resultat = []
+    skrivemal = { }
+    objtyper = list( dakat.keys() )
+
+    for objtype in objtyper: 
+
+        skrivemal[objtype] = {  'metadata' : {  'type': { 
+                                                          'id': dakat[objtype]['id'],
+                                                          'navn':  dakat[objtype]['navn']  
+                                                        }
+                                              },
+                                'egenskaper' : [ ]
+                              }
+
+        egenskap_strekningsbeskrivelse = [ x for x in dakat[objtype]['egenskapstyper'] \
+                                            if x['navn'] == 'Strekningsbeskrivelse'  ][0]
+    
+        mittsok = nvdbFagdata( dakat[objtype]['id'] )
+        mittsok.forbindelse = forb 
+        mittsok.filter( { 'vegsystemreferanse' : 'Kv', 
+                           'kommune' : kommunenummer, 
+                           'egenskap' : f"({egenskap_strekningsbeskrivelse['id']}=null)", 
+                           'trafikantgruppe' : 'K' })
+        mindf = pd.DataFrame( mittsok.to_records() )
+        temp_dataframes.append( mindf )
+
+        # Dataverdier som inngår i veglistene, og som brukes til å finne grupperingen "øvrige veger"
+        # Merk at logikken tar høyde for at noen egenskaper, f.eks. "Bruksklasse vinter", ikke har data
+        # for angjeldende kommune. Dermed kan vi også klare oss med 1 - en - felles definisjon for de 
+        # tre bruksklasse-variantene våre. 
+        vegliste_egenskaper = [ 'Bruksklasse', 'Bruksklasse, vinter',               # felles, men BK normal bestemmer
+                                'Maks vogntoglengde',                               # Kan avvike for 22m og 24m BK tømmer
+                                'Tillatt for modulvogntog 1 og 2 med sporingskrav', # Kun BK tømmer
+                                 'Veggruppe' ]                                     # Kun BK spesial 
+
+        temp = deepcopy( mindf )
+        temp.fillna( '<null>', inplace=True )
+        vegliste_egenskaper_subset = [ col for col in vegliste_egenskaper if col in temp.columns ]
+        sekkepost = temp.groupby( vegliste_egenskaper_subset ).agg( { 'nvdbId' : 'count', 'segmentlengde' : sum } ).reset_index() 
+        sekkepost.sort_values( by=['segmentlengde'], inplace=True, ascending=False  )
+        sekkepost.reset_index( inplace=True, drop=True )
+
+        if len( sekkepost ) > 1: 
+          print( f"i kommunne {kommunenummer} finnes flere verdier for {dakat[objtype]['id']} "  
+                              f"{dakat[objtype]['navn']} uten strekningsbeskrivelse" )
+
+          print( sekkepost )
+
+        # Føyer på standard vegkart disclaimer for BK offisiell:
+        if dakat[objtype]['id'] in [900, 902, 904]: 
+          sekkepost['Vegliste gjelder alltid'] = 'Se www.vegvesen.no/veglister'
+
+        # Lager mal for egenskaper som brukes til SKRIV 
+        for egenskap in sekkepost.columns: 
+          if egenskap not in ['nvdbId', 'segmentlengde'] and sekkepost[egenskap].iloc[0] != '<null>':
+            eg = [ x for x in dakat[objtype]['egenskapstyper'] if x['navn'] == egenskap  ][0]
+            skrivemal[objtype]['egenskaper'].append( { 'id' : eg['id'], 'navn' : eg['navn'], 'verdi' : sekkepost[egenskap].iloc[0]  } )
+
+        resultat.append( sekkepost )
+
+    # Kvalitetssjekk - har vi like dataverdier i de tre eller seks BK-variantene våre? 
+    if len( resultat ) > 0:
+      mintestmal = dict( resultat[0].iloc[0] )
+      mintestmal.pop( 'nvdbId', None)
+      mintestmal.pop( 'segmentlengde', None)
+      for idx, sjekk in enumerate( resultat[1:] ):
+        for verdi in mintestmal.keys(): 
+          if verdi in sjekk.columns and sjekk[verdi].iloc[0] == mintestmal[verdi]: 
+            print( f"ADVARSEL {objtyper[0]} vs {objtyper[idx+1]}, ulik sekkepost-verdi {verdi}:  {mintestmal[verdi]} vs {sjekk[verdi].iloc[0]} ")
+    else: 
+      print( "Tomt resultatsett - har du angitt både inkluder_offisiell=False og inkluder_offisiell=False i funksjonskallet?")
+
+
+    ## for debugging
+    # from IPython import embed; embed()
+
+    return skrivemal
+
+def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ): 
+  """
+  Leser analyserte mangelrapport-data og tetter automatisk (noen av) hullene på kommunalveg i NVDB
+
+  Bruker "sekkepost"-logikk for å finne de dataverdiene som skal brukes der det er hull. 
+
+  I starten (utviklingsfase) vil vi kun gjøre såkalt "dryrun", dvs sende endringssett som IKKE lagres til NVDB. 
+
+
+  """
+
+  layerlist = fiona.listlayers( filnavn )
+  mittlag = [ x for x in layerlist if '904' in x and 'debug' in x ][0]
+
+  bkhull = gpd.read_file( filnavn, layer=mittlag )
+
+  # Finner dem vi skal rette på 
+  retthull = bkhull[ bkhull['vegkategori'] == 'K']
+  retthull = retthull[ retthull['trafikantgruppe'] == 'K']
+  retthull = retthull[ retthull['kommune'] == kommunenummer ]
+  retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
+  
+  # Sjekker om vi har data på disse veglenkene. En del falske negative i mangelrapporten. Hvor mange?
+  veglenker = list( retthull['kortform'] )  
+  idx = list( range( 0, len( veglenker ), 25))
+  idx.append( None )
+  finnerdata = []
+  for objektType in [904, 902, 900 ]: # TODO: Fjern hardkoding 
+    for ix in range(1, len( idx )):
+      sok = nvdbFagdata( objektType )
+      sok.filter( { 'veglenkesekvens' : ','.join( veglenker[idx[ix-1] : idx[ix] ] )  })
+      finnerdata.extend( sok.to_records())
+
+  if len( finnerdata ) > 0: 
+    print( f"{len( finnerdata)} falske negative i mangelrapport for kommune {kommunenummer}  ")
+
+
+  from IPython import embed; embed()
+
+if __name__ == '__main__': 
+    # resultat = finnSekkepost( 4204 )
+    tetthull( 4223 )
