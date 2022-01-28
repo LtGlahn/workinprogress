@@ -69,7 +69,7 @@ def lesmangel( filnavn ):
     kolonneposisjoner = finnkolonnepos(  lines[10]  )
 
     count = 0 
-    # for ll in lines[0:50]:  # Debugvariant, kun ta de første N linjene
+    # for ll in lines[0:100]:  # Debugvariant, kun ta de første N linjene
     for ll in lines:          # Hele datasettet
         cc = lesmangelrad( ll, posisjoner=kolonneposisjoner )
         if cc:
@@ -80,7 +80,7 @@ def lesmangel( filnavn ):
             cc['sqldump_datarad']     = count 
             cc['sqldump_datauttak']   = datauttak
             cc['sqldump_parametre']   = parametre
-
+            cc['filnavn']             = filnavn 
 
             # Henter data for start- og sluttpunkt 
             p1 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
@@ -103,21 +103,34 @@ def lesmangel( filnavn ):
                                        str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )  )
 
             suksess = False 
+            rutefeil = False
+            temp_rute = []
             for segment in rute: 
                 seg = { **segment, **cc }
-                seg['stedfesting'] = 'RUTE'
 
-                data.append( seg  )
-                suksess = True 
+                # Sjekker at vi er på samme veglenkesekvens. I noen tilfeller vil vi velge ei anna rute fra A til B hvis det er kortere
+                if seg['veglenkesekvensid'] == seg['sqldump_vlenkid']: 
+                    seg['stedfesting'] = 'RUTE'
+                    temp_rute.append( seg  )
+                    suksess = True 
+                else: 
+                    rutefeil = True 
+
+            # Forkaster forslaget hvis det er kommet rutefeil 
+            if rutefeil: 
+                suksess = False 
+            elif suksess: 
+                data.extend( temp_rute )
 
             # Prøver å hente data fra NVDB api segmentert vegnett hvis rute-spørring feiler
-            if len( rute ) == 0: 
+            if not suksess: 
                 if cc['sqldump_length'] > 1: 
                     forb = nvdbapiv3.apiforbindelse()
                     r = forb.les( '/vegnett/veglenkesekvenser/segmentert/' + str( cc['sqldump_vlenkid'] ))
                     if r.ok: 
                         segmentdata = r.json()
                         if isinstance( segmentdata, list):
+
                             for segment in segmentdata: 
                                 seg = nvdbapiv3.flatutvegnettsegment( segment )
                                 if seg['startposisjon'] < cc['sqldump_tilpos'] and seg['sluttposisjon'] > cc['sqldump_frapos']:
@@ -272,17 +285,20 @@ def finnMeter( vref, returnerTilmeter=False  ):
 ##
 #######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 2.6 - Litt penere formattering excel')
+    print( 'Mangelrapport 2.7 - Korteste rute blir noen ganger helt feil')
     t0 = datetime.now()
 
     #####################################################
     ## 
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
-    FILNAVN = 'checkCoverage 904_20220113.LOG'
+    FILNAVN = 'checkCoverage 904_20220126.LOG'
+
+    gpkg_fil = 'mangelrapport.gpkg'
     dd = lesmangel(  FILNAVN )
 
     mindf = pd.DataFrame( dd  ) 
+    mindf['filnavn'] = FILNAVN
 
 
     if len( mindf ) > 0: 
@@ -303,7 +319,7 @@ if __name__ == '__main__':
                 'sqldump_length', 'sqldump_vref', 'sqldump_miljo', 'sqldump_dato', 
                 'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 
                 'sqldump_datauttak', 'sqldump_parametre', 
-                'kortform', 'type',  'typeVeg', 'geometri' ]
+                'kortform', 'type',  'typeVeg', 'geometri', 'filnavn' ]
 
         slettecol = list( set( mindf.columns ) - set(col) )
         mindf.drop( columns=slettecol, inplace=True )
@@ -318,7 +334,7 @@ if __name__ == '__main__':
         mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
         minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
         minGdf.drop( columns='geometri', inplace=True )
-        minGdf.to_file( 'mangelrapport.gpkg', layer='debug_' + fanenavn, driver="GPKG")  
+        minGdf.to_file( gpkg_fil, layer='debug_' + fanenavn, driver="GPKG")  
 
         mindf.drop( columns=['geometri', 'geometry'], inplace=True )
         # mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
@@ -341,10 +357,10 @@ if __name__ == '__main__':
 
         aggGdf.sort_values( by=['trafikantgruppe', 'vegnr', 'lengde'], ascending=[ False, True, False ], inplace=True   )
 
-        # aggGdf.to_file( 'mangelrapport.gpkg', layer=fanenavn + '_filtrert', driver='GPKG')
-        aggGdf[ (aggGdf['vegkategori'].str.contains('E')) | (aggGdf['vegkategori'].str.contains('R')) ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_ER', driver='GPKG')
-        aggGdf[ aggGdf['vegkategori'].str.contains('F') ].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_F', driver='GPKG')
-        aggGdf[ aggGdf['vegkategori'].str.contains('K')].to_file( 'mangelrapport.gpkg', layer=fanenavn + '_K', driver='GPKG')
+        # aggGdf.to_file( gpkg_fil, layer=fanenavn + '_filtrert', driver='GPKG')
+        aggGdf[ (aggGdf['vegkategori'].str.contains('E')) | (aggGdf['vegkategori'].str.contains('R')) ].to_file( gpkg_fil, layer=fanenavn + '_ER', driver='GPKG')
+        aggGdf[ aggGdf['vegkategori'].str.contains('F') ].to_file( gpkg_fil, layer=fanenavn + '_F', driver='GPKG')
+        aggGdf[ aggGdf['vegkategori'].str.contains('K')].to_file( gpkg_fil, layer=fanenavn + '_K', driver='GPKG')
         # print( "Har kommentert ut skriving til gpkg")
 
         tidsbruk = datetime.now() - t0 
