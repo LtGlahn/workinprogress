@@ -230,7 +230,7 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
       mintestmal.pop( 'segmentlengde', None)
       for idx, sjekk in enumerate( resultat[1:] ):
         for verdi in mintestmal.keys(): 
-          if verdi in sjekk.columns and sjekk[verdi].iloc[0] == mintestmal[verdi]: 
+          if verdi in sjekk.columns and sjekk[verdi].iloc[0] != mintestmal[verdi]: 
             print( f"ADVARSEL {objtyper[0]} vs {objtyper[idx+1]}, ulik sekkepost-verdi {verdi}:  {mintestmal[verdi]} vs {sjekk[verdi].iloc[0]} ")
     else: 
       print( "Tomt resultatsett - har du angitt både inkluder_offisiell=False og inkluder_offisiell=False i funksjonskallet?")
@@ -252,6 +252,7 @@ def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ):
 
   """
 
+  print( f"Tetter (noen av) hullene i kommune {kommunenummer} ")
   layerlist = fiona.listlayers( filnavn )
   mittlag = [ x for x in layerlist if '904' in x and 'debug' in x ][0]
 
@@ -262,7 +263,16 @@ def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ):
   retthull = retthull[ retthull['trafikantgruppe'] == 'K']
   retthull = retthull[ retthull['kommune'] == kommunenummer ]
   retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
-  
+
+  # filtrerer ut dem som har avvikende veglenkesekvens ID 
+  retthull['vlenkid'] = retthull['kortform'].apply( lambda x : int( x.split('@')[-1] ) )
+  galt = retthull[ retthull['vlenkid'] != retthull['sqldump_vlenkid'] ] 
+  if len( galt ) > 0: 
+    print( f"Fant {len(galt)} avvikende veglenkesekvensID, dropper disse radene: ")
+    print( print( galt[[  'vref', 'sqldump_vref', 'kortform', 'sqldump_datarad' ]] ) )
+    retthull = retthull[ retthull['vlenkid'] == retthull['sqldump_vlenkid'] ]
+
+
   # Sjekker om vi har data på disse veglenkene. En del falske negative i mangelrapporten. Hvor mange?
   veglenker = list( retthull['kortform'] )  
   idx = list( range( 0, len( veglenker ), 25))
@@ -272,13 +282,51 @@ def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ):
     for ix in range(1, len( idx )):
       sok = nvdbFagdata( objektType )
       sok.filter( { 'veglenkesekvens' : ','.join( veglenker[idx[ix-1] : idx[ix] ] )  })
-      finnerdata.extend( sok.to_records())
+      finnerdata.extend( sok.to_records() )
 
   if len( finnerdata ) > 0: 
-    print( f"{len( finnerdata)} falske negative i mangelrapport for kommune {kommunenummer}  ")
+    print( f"Finner {len( finnerdata)} bruksklasse-data der mangelrapport sier det mangler data i kommune {kommunenummer}, ignorerer  ")
+    finnerdf = pd.DataFrame( finnerdata )
+    finnerdf['kortform'] = finnerdf['startposisjon'].astype(str) + '-' + finnerdf['sluttposisjon'].astype(str) + '@' + finnerdf['veglenkesekvensid'].astype(str)
+    finnerdf.fillna('', inplace=True )
+    if 'Tillatt for modulvogntog 1 og 2 med sporingskrav' in finnerdf.columns: 
+      finnerdf.rename( columns={ 'Tillatt for modulvogntog 1 og 2 med sporingskrav' : 'Modulvogntog'}, inplace=True )
+    # col = [ 'kommune', 'objekttype', 'vref', 'trafikantgruppe' ]
+    # bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse', 'Maks vogntoglengde', 'Maks totalvekt', 'Veggruppe', 'Modulvogntog', 'kortform'  ]
+    col = [ 'objekttype', 'vref' ]
+    bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse'  ]
+    col.extend( [x for x in bkcol if x in finnerdf.columns ]   )
+    print( finnerdf[col])
+    feiler = retthull[ retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ].copy()
+    retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
 
 
-  from IPython import embed; embed()
+  skrivemal = finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  )
+  # TODO: Fjern hardkoding av objekttyper 
+  # Liste med endringssett som sendes separat til skriv, ikke alt samlet (potensielt for mye data)
+  endringssett = []
+  mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
+  mal_normal = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
+  mal_overordnet['registrer']['vegobjekter'] = []
+  tempId = -1
+
+  maks_endringer = 20 
+  count = 0 
+  for idx, row in retthull.iterrows():
+    tempId = tempId - 1
+    count  += 1 
+    nyNormal = deepcopy( mal_normal )
+    nyNormal['tempId'] = str( tempId )
+    nyNormal['stedfesting'] = { 'linje' : [ { 'fra' : row['sqldump_frapos'], 'til' : row['sqldump_tilpos'], 'veglenkesekvensNvdbId' : row['sqldump_vlenkid'] }   ]   }
+    mal_overordnet['registrer']['vegobjekter'].append( nyNormal )
+
+    if count >= maks_endringer: 
+      endringssett.append( deepcopy(mal_overordnet ))
+      count = 0
+      mal_overordnet['registrer']['vegobjekter'] = []
+
+
+  # from IPython import embed; embed()
 
 if __name__ == '__main__': 
     # resultat = finnSekkepost( 4204 )
