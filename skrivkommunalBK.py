@@ -241,6 +241,49 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
 
     return skrivemal
 
+def __lagskrivemal( skrivemal ): 
+  """
+  Intern funksjon for å lage maler som brukes til å komponere gyldige endringssett med ulike bruksklasser til NVDBAPISKRIV 
+  
+  leser skrivemal-dictionary (som er dataverdier for sekkepost-BK'ene innafor en kommune) og lager 
+  samsvarende dictionary-struktur som er tilpasset det vi sender til NVDBAPISKRIV  
+
+  ARGUMENTS
+    skrivemal: Dictionary med minst én av BK-klassene 'normal', 'tommer', 'spesial', 
+                                                      'uoff_normal', 'uoff_tommer', 'uoff_spesial' 
+
+              Som igjen er dataeksempler med egenskapsverdier for sekkepost-BK-verdiene for den kommunen
+              
+
+  KEYWORDS
+    N/A
+  
+  RETURNS
+    (endringsettmal, skrivemaler)
+
+    endringsettmal: Den ytre konvolutten der nye vegobjekter blir puttet inn, med den 
+            tomme listen 'registrer' { 'vegobjekter : []}, riktig datakatalog-versjon m.m. 
+
+    Skrivemaler: Dictionary med samme elementer som innkommende element "skrivemal", men der hvert element er 
+                  oversatt til den strukturen som NVDB APISKRIV kan motta
+                  Dvs elementet "normal" har egenskapsverdiene og metadata for registrering av nytt vegobjekt 
+                  av type 904 Bruksklasse normaltransport
+
+
+  """
+  endringsettmal = dict( )
+  skrivemaler = dict( )
+  for count, bk in enumerate( skrivemal.keys()): 
+    mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal[bk], operasjon='registrer' )
+    skrivemaler[bk] = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
+
+    if count == 0:
+      mal_overordnet['registrer']['vegobjekter'] = []
+      endringssett = deepcopy( mal_overordnet)
+    
+  return (endringsettmal, skrivemaler )
+
+
 def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ): 
   """
   Leser analyserte mangelrapport-data og tetter automatisk (noen av) hullene på kommunalveg i NVDB
@@ -302,7 +345,8 @@ def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ):
 
 
   skrivemal = finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  )
-  # TODO: Fjern hardkoding av objekttyper 
+  (endringsettmal, skrivemaler ) = __lagskrivemal( skrivemal )
+  # TODO: Fjern hardkoding av objekttyper basert på funksjonskallet rett over her 
   # Liste med endringssett som sendes separat til skriv, ikke alt samlet (potensielt for mye data)
   endringssett = []
   mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
@@ -326,7 +370,7 @@ def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ):
       mal_overordnet['registrer']['vegobjekter'] = []
 
 
-  # from IPython import embed; embed()
+  from IPython import embed; embed()
 
 if __name__ == '__main__': 
     # resultat = finnSekkepost( 4204 )
