@@ -278,8 +278,8 @@ def __lagskrivemal( skrivemal ):
     skrivemaler[bk] = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
 
     if count == 0:
-      mal_overordnet['registrer']['vegobjekter'] = []
-      endringssett = deepcopy( mal_overordnet)
+      endringsettmal = deepcopy( mal_overordnet )
+      endringsettmal['registrer']['vegobjekter'] = []
     
   return (endringsettmal, skrivemaler )
 
@@ -344,31 +344,32 @@ def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ):
     retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
 
 
-  skrivemal = finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  )
-  (endringsettmal, skrivemaler ) = __lagskrivemal( skrivemal )
-  # TODO: Fjern hardkoding av objekttyper basert på funksjonskallet rett over her 
+  sekkepostegenskaper = finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  )
+  (endringsettmal, skrivemaler ) = __lagskrivemal( sekkepostegenskaper )
+
   # Liste med endringssett som sendes separat til skriv, ikke alt samlet (potensielt for mye data)
   endringssett = []
-  mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
-  mal_normal = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
-  mal_overordnet['registrer']['vegobjekter'] = []
+  # mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
+  # mal_normal = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
+  # mal_overordnet['registrer']['vegobjekter'] = []
   tempId = -1
 
-  maks_endringer = 20 
+  maks_endringer = 3
   count = 0 
   for idx, row in retthull.iterrows():
-    tempId = tempId - 1
-    count  += 1 
-    nyNormal = deepcopy( mal_normal )
-    nyNormal['tempId'] = str( tempId )
-    nyNormal['stedfesting'] = { 'linje' : [ { 'fra' : row['sqldump_frapos'], 'til' : row['sqldump_tilpos'], 'veglenkesekvensNvdbId' : row['sqldump_vlenkid'] }   ]   }
-    mal_overordnet['registrer']['vegobjekter'].append( nyNormal )
+
+    for bkType in sekkepostegenskaper.keys():
+      tempId = tempId - 1
+      count  += 1 
+      nyttBkObjekt  = deepcopy( skrivemaler[bkType] )
+      nyttBkObjekt['tempId'] = str( tempId )
+      nyttBkObjekt['stedfesting'] = { 'linje' : [ { 'fra' : row['sqldump_frapos'], 'til' : row['sqldump_tilpos'], 'veglenkesekvensNvdbId' : row['sqldump_vlenkid'] }   ]   }
+      endringsettmal['registrer']['vegobjekter'].append( nyttBkObjekt )
 
     if count >= maks_endringer: 
-      endringssett.append( deepcopy(mal_overordnet ))
+      endringssett.append( deepcopy( endringsettmal ))
+      endringsettmal['registrer']['vegobjekter'] = []
       count = 0
-      mal_overordnet['registrer']['vegobjekter'] = []
-
 
   from IPython import embed; embed()
 
