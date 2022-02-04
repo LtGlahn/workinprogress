@@ -70,11 +70,15 @@ import pandas as pd
 import geopandas as gpd 
 import fiona
 
+import warnings # Ignorerer den irriterende meldingen fra geopandas.from_file()
+warnings.filterwarnings("ignore", message="Sequential read of iterator was interrupted. Resetting iterator. This can negatively impact the performance.")
+
+
 import STARTHER
 import skrivnvdb 
 from nvdbapiv3 import  nvdbFagdata, apiforbindelse 
 
-def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  ): 
+def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens', pw='', forb=None  ): 
     """
     Finner sekkepost-fordelig av bruksklasseverdier på vegnett i en kommune
 
@@ -97,13 +101,18 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
       kommunenummer : int, kommunenummer
 
     KEYWORDS 
-      inkluder_offisiell : True eller False 
+      inkluder_offisiell : Bool, True (default) eller False 
       
-      inkluder_uoffisiell : True eller False 
+      inkluder_uoffisiell : Bool, True eller False (default) 
 
-      miljo : 'prodles', 'testles' eller 'utvles'. Hvilket miljø (produksjon, test eller utvikling) som vi henter data fra 
+      miljo : string, en av 'prodles' (default), 'testles' eller 'utvles'. Hvilket miljø (produksjon, test eller utvikling) som vi henter data fra 
 
-      username : 'jajens' Brukernavn som brukes til innlogging NVDB api LES, for angitt miljø
+      username : string, default 'jajens' Brukernavn som brukes til innlogging NVDB api LES, for angitt miljø
+
+      pw : string, default ''. IKKE SKRIV PASSORD I KODE SOM DELES! Passord for å logge inn i det driftsmiljøet som er angitt med parameter miljo
+
+      forb : Instans av nvdbapiv3.apiforbindelse. Default None. Slik kan du logge inn i driftsmiljø APILES én og kun gang, og deretter
+                       dele ferdig innlogget apiforbindelse-objekt med dem som trenger det   
 
     RETURNS
       skrivemal : Dictionary med de dataverdiene som skal skrives til NVDBAPISKRIV for de stedene der vi mangler 
@@ -144,23 +153,27 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
     """
 
     # Henter datakatalog-definisjoner 
-    forb = apiforbindelse()
+    if not forb: 
+      forb = apiforbindelse()
+
     dakat = { }
 
     if inkluder_offisiell:
 
-      dakat['normal'] = forb.les( '/vegobjekttyper/904').json()
-      dakat['tommer'] = forb.les( '/vegobjekttyper/900').json()
-      dakat['spesial'] = forb.les( '/vegobjekttyper/902').json()
-
+        dakat['normal'] = forb.les( '/vegobjekttyper/904').json()
+        dakat['tommer'] = forb.les( '/vegobjekttyper/900').json()
+        dakat['spesial'] = forb.les( '/vegobjekttyper/902').json()
 
     if inkluder_uoffisiell: 
-      print( f"Logg inn i miljø {miljo} ")
-      forb.login( miljo='prodles', username='jajens')
+        if hasattr( forb, 'loginrespons' ) and forb.loginrespons.ok:
+            pass
+        else:  
+            print( f"Logg inn i nvdb api les driftsmiljø {miljo} ")
+            forb.login( miljo='prodles', username=username, pw=pw)
 
-      dakat['uoff_normal'] = forb.les( '/vegobjekttyper/905').json()
-      dakat['uoff_tommer'] = forb.les( '/vegobjekttyper/901').json()
-      dakat['uoff_spesial'] = forb.les( '/vegobjekttyper/903').json()
+        dakat['uoff_normal'] = forb.les( '/vegobjekttyper/905').json()
+        dakat['uoff_tommer'] = forb.les( '/vegobjekttyper/901').json()
+        dakat['uoff_spesial'] = forb.les( '/vegobjekttyper/903').json()
 
     temp_dataframes = []
     resultat = []
@@ -206,34 +219,34 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
         sekkepost.reset_index( inplace=True, drop=True )
 
         if len( sekkepost ) > 1: 
-          print( f"i kommunne {kommunenummer} finnes flere verdier for {dakat[objtype]['id']} "  
-                              f"{dakat[objtype]['navn']} uten strekningsbeskrivelse" )
+            print( f"i kommunne {kommunenummer} finnes flere verdier for {dakat[objtype]['id']} "  
+                                f"{dakat[objtype]['navn']} uten strekningsbeskrivelse" )
 
-          print( sekkepost )
+            print( sekkepost )
 
         # Føyer på standard vegkart disclaimer for BK offisiell:
         if dakat[objtype]['id'] in [900, 902, 904]: 
-          sekkepost['Vegliste gjelder alltid'] = 'Se www.vegvesen.no/veglister'
+            sekkepost['Vegliste gjelder alltid'] = 'Se www.vegvesen.no/veglister'
 
         # Lager mal for egenskaper som brukes til SKRIV 
         for egenskap in sekkepost.columns: 
-          if egenskap not in ['nvdbId', 'segmentlengde'] and sekkepost[egenskap].iloc[0] != '<null>':
-            eg = [ x for x in dakat[objtype]['egenskapstyper'] if x['navn'] == egenskap  ][0]
-            skrivemal[objtype]['egenskaper'].append( { 'id' : eg['id'], 'navn' : eg['navn'], 'verdi' : sekkepost[egenskap].iloc[0]  } )
+            if egenskap not in ['nvdbId', 'segmentlengde'] and sekkepost[egenskap].iloc[0] != '<null>':
+                eg = [ x for x in dakat[objtype]['egenskapstyper'] if x['navn'] == egenskap  ][0]
+                skrivemal[objtype]['egenskaper'].append( { 'id' : eg['id'], 'navn' : eg['navn'], 'verdi' : sekkepost[egenskap].iloc[0]  } )
 
         resultat.append( sekkepost )
 
     # Kvalitetssjekk - har vi like dataverdier i de tre eller seks BK-variantene våre? 
     if len( resultat ) > 0:
-      mintestmal = dict( resultat[0].iloc[0] )
-      mintestmal.pop( 'nvdbId', None)
-      mintestmal.pop( 'segmentlengde', None)
-      for idx, sjekk in enumerate( resultat[1:] ):
-        for verdi in mintestmal.keys(): 
-          if verdi in sjekk.columns and sjekk[verdi].iloc[0] != mintestmal[verdi]: 
-            print( f"ADVARSEL {objtyper[0]} vs {objtyper[idx+1]}, ulik sekkepost-verdi {verdi}:  {mintestmal[verdi]} vs {sjekk[verdi].iloc[0]} ")
+        mintestmal = dict( resultat[0].iloc[0] )
+        mintestmal.pop( 'nvdbId', None)
+        mintestmal.pop( 'segmentlengde', None)
+        for idx, sjekk in enumerate( resultat[1:] ):
+            for verdi in mintestmal.keys(): 
+                if verdi in sjekk.columns and sjekk[verdi].iloc[0] != mintestmal[verdi]: 
+                    print( f"ADVARSEL {objtyper[0]} vs {objtyper[idx+1]}, ulik sekkepost-verdi {verdi}:  {mintestmal[verdi]} vs {sjekk[verdi].iloc[0]} ")
     else: 
-      print( "Tomt resultatsett - har du angitt både inkluder_offisiell=False og inkluder_offisiell=False i funksjonskallet?")
+        print( "Tomt resultatsett - har du angitt både inkluder_offisiell=False og inkluder_offisiell=False i funksjonskallet?")
 
 
     ## for debugging
@@ -241,138 +254,181 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
 
     return skrivemal
 
+    # from IPython import embed; embed()
+
+
 def __lagskrivemal( skrivemal ): 
-  """
-  Intern funksjon for å lage maler som brukes til å komponere gyldige endringssett med ulike bruksklasser til NVDBAPISKRIV 
-  
-  leser skrivemal-dictionary (som er dataverdier for sekkepost-BK'ene innafor en kommune) og lager 
-  samsvarende dictionary-struktur som er tilpasset det vi sender til NVDBAPISKRIV  
+    """
+    Intern funksjon for å lage maler som brukes til å komponere gyldige endringssett med ulike bruksklasser til NVDBAPISKRIV 
 
-  ARGUMENTS
+    leser skrivemal-dictionary (som er dataverdier for sekkepost-BK'ene innafor en kommune) og lager 
+    samsvarende dictionary-struktur som er tilpasset det vi sender til NVDBAPISKRIV  
+
+    ARGUMENTS
     skrivemal: Dictionary med minst én av BK-klassene 'normal', 'tommer', 'spesial', 
-                                                      'uoff_normal', 'uoff_tommer', 'uoff_spesial' 
+                                                        'uoff_normal', 'uoff_tommer', 'uoff_spesial' 
 
-              Som igjen er dataeksempler med egenskapsverdier for sekkepost-BK-verdiene for den kommunen
-              
+                Som igjen er dataeksempler med egenskapsverdier for sekkepost-BK-verdiene for den kommunen
+                
 
-  KEYWORDS
+    KEYWORDS
     N/A
-  
-  RETURNS
+
+    RETURNS
     (endringsettmal, skrivemaler)
 
     endringsettmal: Den ytre konvolutten der nye vegobjekter blir puttet inn, med den 
             tomme listen 'registrer' { 'vegobjekter : []}, riktig datakatalog-versjon m.m. 
 
     Skrivemaler: Dictionary med samme elementer som innkommende element "skrivemal", men der hvert element er 
-                  oversatt til den strukturen som NVDB APISKRIV kan motta
-                  Dvs elementet "normal" har egenskapsverdiene og metadata for registrering av nytt vegobjekt 
-                  av type 904 Bruksklasse normaltransport
+                    oversatt til den strukturen som NVDB APISKRIV kan motta
+                    Dvs elementet "normal" har egenskapsverdiene og metadata for registrering av nytt vegobjekt 
+                    av type 904 Bruksklasse normaltransport
 
 
-  """
-  endringsettmal = dict( )
-  skrivemaler = dict( )
-  for count, bk in enumerate( skrivemal.keys()): 
-    mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal[bk], operasjon='registrer' )
-    skrivemaler[bk] = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
+    """
+    endringsettmal = dict( )
+    skrivemaler = dict( )
+    for count, bk in enumerate( skrivemal.keys()): 
+        mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal[bk], operasjon='registrer' )
+        skrivemaler[bk] = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
 
-    if count == 0:
-      endringsettmal = deepcopy( mal_overordnet )
-      endringsettmal['registrer']['vegobjekter'] = []
-    
-  return (endringsettmal, skrivemaler )
-
-
-def tetthull( kommunenummer, filnavn='mangelrapport.gpkg' ): 
-  """
-  Leser analyserte mangelrapport-data og tetter automatisk (noen av) hullene på kommunalveg i NVDB
-
-  Bruker "sekkepost"-logikk for å finne de dataverdiene som skal brukes der det er hull. 
-
-  I starten (utviklingsfase) vil vi kun gjøre såkalt "dryrun", dvs sende endringssett som IKKE lagres til NVDB. 
+        if count == 0:
+            endringsettmal = deepcopy( mal_overordnet )
+            endringsettmal['registrer']['vegobjekter'] = []
+        
+    return (endringsettmal, skrivemaler )
 
 
-  """
+def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inkluder_offisiell=True, inkluder_uoffisiell=False, 
+                              miljo='prodles', username='jajens', pw='' ): 
+    """
+    Leser analyserte mangelrapport-data og tetter automatisk (noen av) hullene på kommunalveg i NVDB
 
-  print( f"Tetter (noen av) hullene i kommune {kommunenummer} ")
-  layerlist = fiona.listlayers( filnavn )
-  mittlag = [ x for x in layerlist if '904' in x and 'debug' in x ][0]
+    Bruker "sekkepost"-logikk for å finne de dataverdiene som skal brukes der det er hull. 
 
-  bkhull = gpd.read_file( filnavn, layer=mittlag )
+    I starten (utviklingsfase) vil vi kun gjøre såkalt "dryrun", dvs sende endringssett som IKKE lagres til NVDB. 
 
-  # Finner dem vi skal rette på 
-  retthull = bkhull[ bkhull['vegkategori'] == 'K']
-  retthull = retthull[ retthull['trafikantgruppe'] == 'K']
-  retthull = retthull[ retthull['kommune'] == kommunenummer ]
-  retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
+    ARGUMENTS 
+    kommunenummer : Int, kommunenummer
 
-  # filtrerer ut dem som har avvikende veglenkesekvens ID 
-  retthull['vlenkid'] = retthull['kortform'].apply( lambda x : int( x.split('@')[-1] ) )
-  galt = retthull[ retthull['vlenkid'] != retthull['sqldump_vlenkid'] ] 
-  if len( galt ) > 0: 
-    print( f"Fant {len(galt)} avvikende veglenkesekvensID, dropper disse radene: ")
-    print( print( galt[[  'vref', 'sqldump_vref', 'kortform', 'sqldump_datarad' ]] ) )
-    retthull = retthull[ retthull['vlenkid'] == retthull['sqldump_vlenkid'] ]
+    KEYWORDS 
+    filnavn : string, filnavn på mangelrapport. Default 'mangelrapport.gpkg'
 
+    inkluder_offisiell : Bool, default True. Tar med offisielle verdier for BK normal, tømmer, spesial
 
-  # Sjekker om vi har data på disse veglenkene. En del falske negative i mangelrapporten. Hvor mange?
-  veglenker = list( retthull['kortform'] )  
-  idx = list( range( 0, len( veglenker ), 25))
-  idx.append( None )
-  finnerdata = []
-  for objektType in [904, 902, 900 ]: # TODO: Fjern hardkoding 
-    for ix in range(1, len( idx )):
-      sok = nvdbFagdata( objektType )
-      sok.filter( { 'veglenkesekvens' : ','.join( veglenker[idx[ix-1] : idx[ix] ] )  })
-      finnerdata.extend( sok.to_records() )
+    inkluder_uoffisiell : Bool, default False. Tar med Uoffisiell-verdier for BK normal, tømmer, spesial 
 
-  if len( finnerdata ) > 0: 
-    print( f"Finner {len( finnerdata)} bruksklasse-data der mangelrapport sier det mangler data i kommune {kommunenummer}, ignorerer  ")
-    finnerdf = pd.DataFrame( finnerdata )
-    finnerdf['kortform'] = finnerdf['startposisjon'].astype(str) + '-' + finnerdf['sluttposisjon'].astype(str) + '@' + finnerdf['veglenkesekvensid'].astype(str)
-    finnerdf.fillna('', inplace=True )
-    if 'Tillatt for modulvogntog 1 og 2 med sporingskrav' in finnerdf.columns: 
-      finnerdf.rename( columns={ 'Tillatt for modulvogntog 1 og 2 med sporingskrav' : 'Modulvogntog'}, inplace=True )
-    # col = [ 'kommune', 'objekttype', 'vref', 'trafikantgruppe' ]
-    # bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse', 'Maks vogntoglengde', 'Maks totalvekt', 'Veggruppe', 'Modulvogntog', 'kortform'  ]
-    col = [ 'objekttype', 'vref' ]
-    bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse'  ]
-    col.extend( [x for x in bkcol if x in finnerdf.columns ]   )
-    print( finnerdf[col])
-    feiler = retthull[ retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ].copy()
-    retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
+    miljo : string, default 'prodles', men kan også ha verdiene 'testles' og 'utvles'. Angir hvilket driftsmiljø vi henter 
+                        data fra.  
+
+    username : string. Brukernavn for å logge inn i LES (kun aktuelt dersom inkluder_uoffisiell=True). Kan droppes, du 
+                        blir i så fall spurt interaktivt på kommandolinja eller i notebook 
+
+    pw : string. Passord for å logge inn i LES. ALDRI SKRIV PASSORDET DITT I KILDEKODE SOM DELES! Du blir interaktivt spurt om 
+                    passordet på kommandolinja eller i notebook. Kun aktuelt dersom inkluder_uoffisiell=True 
+
+    RETURNS
+        endringssett: Liste med endringssett der hvert endringssett har passe mange vegobjekter (Opptil ca 500 stk). 
 
 
-  sekkepostegenskaper = finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens'  )
-  (endringsettmal, skrivemaler ) = __lagskrivemal( sekkepostegenskaper )
+    """
 
-  # Liste med endringssett som sendes separat til skriv, ikke alt samlet (potensielt for mye data)
-  endringssett = []
-  # mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
-  # mal_normal = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
-  # mal_overordnet['registrer']['vegobjekter'] = []
-  tempId = -1
+    print( f"Tetter (noen av) hullene i kommune {kommunenummer} ")
+    layerlist = fiona.listlayers( filnavn )
+    mittlag = [ x for x in layerlist if '904' in x and 'debug' in x ][0]
 
-  maks_endringer = 3
-  count = 0 
-  for idx, row in retthull.iterrows():
+    bkhull = gpd.read_file( filnavn, layer=mittlag )
 
-    for bkType in sekkepostegenskaper.keys():
-      tempId = tempId - 1
-      count  += 1 
-      nyttBkObjekt  = deepcopy( skrivemaler[bkType] )
-      nyttBkObjekt['tempId'] = str( tempId )
-      nyttBkObjekt['stedfesting'] = { 'linje' : [ { 'fra' : row['sqldump_frapos'], 'til' : row['sqldump_tilpos'], 'veglenkesekvensNvdbId' : row['sqldump_vlenkid'] }   ]   }
-      endringsettmal['registrer']['vegobjekter'].append( nyttBkObjekt )
+    # Finner dem vi skal rette på 
+    retthull = bkhull[ bkhull['vegkategori'] == 'K']
+    retthull = retthull[ retthull['trafikantgruppe'] == 'K']
+    retthull = retthull[ retthull['kommune'] == kommunenummer ]
+    retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
 
-    if count >= maks_endringer: 
-      endringssett.append( deepcopy( endringsettmal ))
-      endringsettmal['registrer']['vegobjekter'] = []
-      count = 0
+    # filtrerer ut dem som har avvikende veglenkesekvens ID 
+    retthull['vlenkid'] = retthull['kortform'].apply( lambda x : int( x.split('@')[-1] ) )
+    galt = retthull[ retthull['vlenkid'] != retthull['sqldump_vlenkid'] ] 
+    if len( galt ) > 0: 
+        print( f"Fant {len(galt)} avvikende veglenkesekvensID, dropper disse radene: ")
+        print( print( galt[[  'vref', 'sqldump_vref', 'kortform', 'sqldump_datarad' ]] ) )
+        retthull = retthull[ retthull['vlenkid'] == retthull['sqldump_vlenkid'] ]
 
-  from IPython import embed; embed()
+
+    # Sjekker om vi har data på disse veglenkene. En del falske negative i mangelrapporten. Hvor mange?
+    # Legger alle kortform-stedfesting-tekstene (eks '0-1@1234) i liste. Slår sammen "passe mange" slike kortformer 
+    # til kommaseparert liste som brukes som søkefilter i api les: 'veglenkesekvenser=0-1@1234,0-1@9999' 
+    veglenker = list( retthull['kortform'] )  
+    idx = list( range( 0, len( veglenker ), 25))
+    idx.append( None )
+    finnerdata = []
+    sjekkObjekttyper = []
+    forb = apiforbindelse()
+    if inkluder_offisiell: 
+        sjekkObjekttyper.extend( [904, 902, 900 ] )
+
+    if inkluder_uoffisiell: 
+        sjekkObjekttyper.extend( [905, 903, 901 ] )
+        print( "Logg inn i NVDB leseapi driftsmiljø", miljo)
+        forb.login( miljo=miljo, username=username, pw=pw )
+
+    for objektType in sjekkObjekttyper:  
+        for ix in range(1, len( idx )):
+            sok = nvdbFagdata( objektType )
+            sok.filter( { 'veglenkesekvens' : ','.join( veglenker[idx[ix-1] : idx[ix] ] )  })
+            sok.forbindelse = forb 
+            finnerdata.extend( sok.to_records() )
+
+    if len( finnerdata ) > 0: 
+        print( f"Finner {len( finnerdata)} bruksklasse-strekninger der mangelrapport sier det mangler data i kommune {kommunenummer}, ignorerer disse:")
+        finnerdf = pd.DataFrame( finnerdata )
+        finnerdf['kortform'] = finnerdf['startposisjon'].astype(str) + '-' + finnerdf['sluttposisjon'].astype(str) + '@' + finnerdf['veglenkesekvensid'].astype(str)
+        finnerdf.fillna('', inplace=True )
+        if 'Tillatt for modulvogntog 1 og 2 med sporingskrav' in finnerdf.columns: 
+            finnerdf.rename( columns={ 'Tillatt for modulvogntog 1 og 2 med sporingskrav' : 'Modulvogntog'}, inplace=True )
+        # col = [ 'kommune', 'objekttype', 'vref', 'trafikantgruppe' ]
+        # bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse', 'Maks vogntoglengde', 'Maks totalvekt', 'Veggruppe', 'Modulvogntog', 'kortform'  ]
+        col = [ 'objekttype', 'vref' ]
+        bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse'  ]
+        col.extend( [x for x in bkcol if x in finnerdf.columns ]   )
+        print( finnerdf[col].sort_values( 'vref'))
+        feiler = retthull[ retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ].copy()
+        retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
+
+    sekkepostegenskaper = finnSekkepost( kommunenummer, inkluder_offisiell=inkluder_offisiell, inkluder_uoffisiell=inkluder_uoffisiell, 
+                                            miljo=miljo, username=username, pw=pw, forb=forb  )
+    (endringsettmal, skrivemaler ) = __lagskrivemal( sekkepostegenskaper )
+
+    # Liste med endringssett som sendes separat til skriv, ikke alt samlet (potensielt for mye data)
+    endringssett = []
+    # mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
+    # mal_normal = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
+    # mal_overordnet['registrer']['vegobjekter'] = []
+    tempId = -1
+
+    maks_endringer = 3
+    count = 0 
+    for idx, row in retthull.iterrows():
+
+        for bkType in sekkepostegenskaper.keys():
+            tempId = tempId - 1
+            count  += 1 
+            nyttBkObjekt  = deepcopy( skrivemaler[bkType] )
+            nyttBkObjekt['tempId'] = str( tempId )
+            nyttBkObjekt['stedfesting'] = { 'linje' : [ { 'fra' : row['sqldump_frapos'], 'til' : row['sqldump_tilpos'], 'veglenkesekvensNvdbId' : row['sqldump_vlenkid'] }   ]   }
+            endringsettmal['registrer']['vegobjekter'].append( nyttBkObjekt )
+
+        if count >= maks_endringer: 
+            endringssett.append( deepcopy( endringsettmal ))
+            endringsettmal['registrer']['vegobjekter'] = []
+            count = 0
+
+    # Ferdig med alle iterasjoner, føyer til den aller siste gjengen 
+    if len( endringsettmal['registrer']['vegobjekter'] ) > 0: 
+        endringssett.append( deepcopy( endringsettmal ))
+        
+    return endringssett
 
 if __name__ == '__main__': 
     # resultat = finnSekkepost( 4204 )
-    tetthull( 4223 )
+    endringssett = tetthull_lagendringssett( 4223, inkluder_uoffisiell=True )
