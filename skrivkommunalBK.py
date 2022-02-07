@@ -64,7 +64,8 @@ Så logikken her blir følgende:
 """
 
 from copy import deepcopy
-import pdb
+# import pdb
+from datetime import datetime
 
 import pandas as pd
 import geopandas as gpd 
@@ -254,7 +255,7 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
 
     return skrivemal
 
-    # from IPython import embed; embed()
+
 
 
 def __lagskrivemal( skrivemal ): 
@@ -301,36 +302,42 @@ def __lagskrivemal( skrivemal ):
 
 
 def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inkluder_offisiell=True, inkluder_uoffisiell=False, 
-                              miljo='prodles', username='jajens', pw='' ): 
+                              miljo='prodles', username='jajens', pw='', forb=None ): 
     """
-    Leser analyserte mangelrapport-data og tetter automatisk (noen av) hullene på kommunalveg i NVDB
+    Leser analyserte mangelrapport-data og lager endringssett som kan sendes til NVDB APISKRIV for å tette (noen av) hullene på kommunalveg i NVDB
 
     Bruker "sekkepost"-logikk for å finne de dataverdiene som skal brukes der det er hull. 
 
-    I starten (utviklingsfase) vil vi kun gjøre såkalt "dryrun", dvs sende endringssett som IKKE lagres til NVDB. 
-
     ARGUMENTS 
-    kommunenummer : Int, kommunenummer
+        kommunenummer : Int, kommunenummer
 
     KEYWORDS 
-    filnavn : string, filnavn på mangelrapport. Default 'mangelrapport.gpkg'
+        filnavn : string, filnavn på mangelrapport. Default 'mangelrapport.gpkg'
 
-    inkluder_offisiell : Bool, default True. Tar med offisielle verdier for BK normal, tømmer, spesial
+        inkluder_offisiell : Bool, default True. Tar med offisielle verdier for BK normal, tømmer, spesial
 
-    inkluder_uoffisiell : Bool, default False. Tar med Uoffisiell-verdier for BK normal, tømmer, spesial 
+        inkluder_uoffisiell : Bool, default False. Tar med Uoffisiell-verdier for BK normal, tømmer, spesial 
 
-    miljo : string, default 'prodles', men kan også ha verdiene 'testles' og 'utvles'. Angir hvilket driftsmiljø vi henter 
+        miljo : string, default 'prodles', men kan også ha verdiene 'testles' og 'utvles'. Angir hvilket driftsmiljø vi henter 
                         data fra.  
 
-    username : string. Brukernavn for å logge inn i LES (kun aktuelt dersom inkluder_uoffisiell=True). Kan droppes, du 
+        username : string. Brukernavn for å logge inn i LES (kun aktuelt dersom inkluder_uoffisiell=True). Kan droppes, du 
                         blir i så fall spurt interaktivt på kommandolinja eller i notebook 
 
-    pw : string. Passord for å logge inn i LES. ALDRI SKRIV PASSORDET DITT I KILDEKODE SOM DELES! Du blir interaktivt spurt om 
-                    passordet på kommandolinja eller i notebook. Kun aktuelt dersom inkluder_uoffisiell=True 
+        pw : string. Passord for å logge inn i LES. ALDRI SKRIV PASSORDET DITT I KILDEKODE SOM DELES! Du blir interaktivt spurt om 
+                passordet på kommandolinja eller i notebook. Kun aktuelt dersom inkluder_uoffisiell=True 
+
+        forb : Instans av nvdbapiv3.apiforbindelse, default None. Bruksområde er at du et annet sted i koden (f.eks i et annet script) 
+                logger inn i NVDB api LES for det driftsmiljøet du vil lese data fra, og så sender det ferdig innloggede 
+                apiforbindelse-objektet inn som argument til de funksjonene som trenger det. Dette gjør det f.eks enklere
+                å unngå at denne koden ved en feil plutselig inneholder passordet ditt - det kan du ha i et annet script som IKKE deles videre.
 
     RETURNS
-        endringssett: Liste med endringssett der hvert endringssett har passe mange vegobjekter (Opptil ca 500 stk). 
+        (retthull, endringssett): Tuple med disse datene 
 
+            retthull: Geodataframe med de hullene vi lukker med endringssettet (og data om mangelrapporten de er henta fra)
+        
+            endringssett: Liste med endringssett der hvert endringssett har passe mange vegobjekter (Opptil ca 500 stk per endringssett). 
 
     """
 
@@ -344,7 +351,7 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
     retthull = bkhull[ bkhull['vegkategori'] == 'K']
     retthull = retthull[ retthull['trafikantgruppe'] == 'K']
     retthull = retthull[ retthull['kommune'] == kommunenummer ]
-    retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
+    # retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
 
     # filtrerer ut dem som har avvikende veglenkesekvens ID 
     retthull['vlenkid'] = retthull['kortform'].apply( lambda x : int( x.split('@')[-1] ) )
@@ -354,25 +361,30 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
         print( print( galt[[  'vref', 'sqldump_vref', 'kortform', 'sqldump_datarad' ]] ) )
         retthull = retthull[ retthull['vlenkid'] == retthull['sqldump_vlenkid'] ]
 
+    # Lager kortform av sqldump-veglenkeposisjsonene: 
+    retthull['sqldump_kortform'] = retthull['sqldump_frapos'].astype(str) + '-' + retthull['sqldump_tilpos'].astype(str) + '@' + retthull['sqldump_vlenkid'].astype(str)
 
-    # Sjekker om vi har data på disse veglenkene. En del falske negative i mangelrapporten. Hvor mange?
+    # Sjekker om vi har data på disse veglenkene. En del falske innslag i mangelrapporten. Hvor mange?
     # Legger alle kortform-stedfesting-tekstene (eks '0-1@1234) i liste. Slår sammen "passe mange" slike kortformer 
     # til kommaseparert liste som brukes som søkefilter i api les: 'veglenkesekvenser=0-1@1234,0-1@9999' 
-    veglenker = list( retthull['kortform'] )  
+    veglenker = list( set( list( retthull['sqldump_kortform'] )))  
     idx = list( range( 0, len( veglenker ), 25))
     idx.append( None )
     finnerdata = []
     sjekkObjekttyper = []
-    forb = apiforbindelse()
+    if not forb:
+        forb = apiforbindelse()
     if inkluder_offisiell: 
         sjekkObjekttyper.extend( [904, 902, 900 ] )
 
     if inkluder_uoffisiell: 
         sjekkObjekttyper.extend( [905, 903, 901 ] )
-        print( "Logg inn i NVDB leseapi driftsmiljø", miljo)
-        forb.login( miljo=miljo, username=username, pw=pw )
+        if not  'Authorization' in forb.headers:
+            print( "Logg inn i NVDB leseapi driftsmiljø", miljo)
+            forb.login( miljo=miljo, username=username, pw=pw )
 
     for objektType in sjekkObjekttyper:  
+        print( f"Sjekker om det finnes data for {objektType} der mangelrapport sier det er hull ")
         for ix in range(1, len( idx )):
             sok = nvdbFagdata( objektType )
             sok.filter( { 'veglenkesekvens' : ','.join( veglenker[idx[ix-1] : idx[ix] ] )  })
@@ -395,6 +407,24 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
         feiler = retthull[ retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ].copy()
         retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
 
+    # Sjekker at lenkene faktisk finnes. Kan droppes i PROD? (Ideelt sett, iallfall)
+    forkast = []
+    print( f"Sjekker om alle {len( list(set(list(retthull['sqldump_vlenkid'] ))) )} lenkene i mangelrapport faktisk finnes (kan potensielt droppes når vi går mot PROD?")
+    for lenke in set( list( retthull['sqldump_vlenkid'] )): 
+        r = forb.les(   '/vegnett/veglenkesekvenser/segmentert/' + str( lenke )  )
+        if not r.ok: 
+            forkast.append( int( lenke ))
+
+    if len( forkast ) > 0: 
+        junk = retthull[ retthull['sqldump_vlenkid'].isin( forkast ) ]
+        print( f"Mangler totalt {len(forkast)} lenker i miljo {forb.miljo}, fjerner {len(junk)} rader med BK-data for disse lenkene ")
+        retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( forkast ) ]
+
+
+    # Lager kopi av retthull hvor vi fjerner duplikater pga segmentering, 0-1@veglenkesekvensId er gjerne brutt opp i flere biter
+    skrivdisse = retthull.drop_duplicates( subset=['sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos'  ] )
+
+    print( f"Lager sekkepost, henter alle BK-varianter uten strekningsbeskrivelse på kommunalveg i kommune {kommunenummer} ")
     sekkepostegenskaper = finnSekkepost( kommunenummer, inkluder_offisiell=inkluder_offisiell, inkluder_uoffisiell=inkluder_uoffisiell, 
                                             miljo=miljo, username=username, pw=pw, forb=forb  )
     (endringsettmal, skrivemaler ) = __lagskrivemal( sekkepostegenskaper )
@@ -404,11 +434,11 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
     # mal_overordnet = skrivnvdb.fagdata2skrivemal( skrivemal['normal'], operasjon='registrer' )
     # mal_normal = deepcopy( mal_overordnet['registrer']['vegobjekter'][0] )
     # mal_overordnet['registrer']['vegobjekter'] = []
-    tempId = -1
+    tempId = -10000
 
-    maks_endringer = 3
+    maks_endringer = 500
     count = 0 
-    for idx, row in retthull.iterrows():
+    for idx, row in skrivdisse.iterrows():
 
         for bkType in sekkepostegenskaper.keys():
             tempId = tempId - 1
@@ -427,8 +457,98 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
     if len( endringsettmal['registrer']['vegobjekter'] ) > 0: 
         endringssett.append( deepcopy( endringsettmal ))
         
-    return endringssett
+    return ( deepcopy(retthull), endringssett ) 
 
+
+def retthull_skrivnvdb(   kommunenummer, filnavn='mangelrapport.gpkg', loggskrivfilnavn='loggskriv.gpkg', inkluder_offisiell=True, inkluder_uoffisiell=False, 
+                              miljo='prodles', skrivmiljo='testskriv', dryrun=True, username='jajens', pw='', forb=None, skrivforb=None  ): 
+    """
+    Leser analyserte mangelrapport-data og skriver til NVDB APISKRIV for å tette (noen av) hullene på kommunalveg i NVDB
+
+    Bruker "sekkepost"-logikk for å finne de dataverdiene som skal brukes der det er hull. 
+
+    ARGUMENTS 
+        kommunenummer : Int, kommunenummer
+
+    KEYWORDS 
+        filnavn : string, filnavn på mangelrapport. Default 'mangelrapport.gpkg'
+
+        loggskrivfilnavn : string, filnavn på GPKG-fil der vi lagrer kartvisning av hvor vi har skrevet nye BK-verdier. 
+                            Navnet på kartlaget = klientinfo som er brukt ved skriving til NVDB
+
+        inkluder_offisiell : Bool, default True. Tar med offisielle verdier for BK normal, tømmer, spesial
+
+        inkluder_uoffisiell : Bool, default False. Tar med Uoffisiell-verdier for BK normal, tømmer, spesial 
+
+        miljo : string, default 'prodles', men kan også ha verdiene 'testles' og 'utvles'. Angir hvilket driftsmiljø vi henter 
+                        data fra.  
+
+        skrivmiljo : string, default 'prodskriv', men kan også  ha verdiene 'testskriv' og 'utvskriv'. Angir hvilket driftsmiljø
+                        vi skriver data til 
+
+        dryrun : Bool, default True. Testskriving uten commit til databasen.
+
+        username : string. Brukernavn for å logge inn i LES (kun aktuelt dersom inkluder_uoffisiell=True). Kan droppes, du 
+                        blir i så fall spurt interaktivt på kommandolinja eller i notebook 
+
+        pw : string. Passord for å logge inn i LES. ALDRI SKRIV PASSORDET DITT I KILDEKODE SOM DELES! Du blir interaktivt spurt om 
+                passordet på kommandolinja eller i notebook. Kun aktuelt dersom inkluder_uoffisiell=True 
+
+        forb : Instans av nvdbapiv3.apiforbindelse, default None, som brukes til å lese fra NVDB API LES 
+        
+        skriforb : Instans av nvdbapiv3.apiforbindelse, default None, som brukes til å skrive til  NVDB API LES 
+        
+        Bruksområde for forb og skrivforb er at du et annet sted i koden (f.eks i et annet script) 
+        logger inn i NVDB api LES eller SKRIV for det driftsmiljøet du vil lese data fra (eller skrive til), og så sender det 
+        ferdig innloggede apiforbindelse-objektet inn som argument til de funksjonene som trenger det. Dette gjør det f.eks enklere
+        å unngå at denne koden ved en feil plutselig inneholder passordet ditt - det kan du ha i et annet script som IKKE deles videre.
+
+    RETURNS
+        N/A
+
+    """
+
+
+    (retthull, endringssett) = tetthull_lagendringssett( kommunenummer, filnavn=filnavn, inkluder_offisiell=inkluder_offisiell, inkluder_uoffisiell=inkluder_uoffisiell, 
+                              miljo=miljo, username='jajens', pw=pw, forb=forb )
+
+    
+    if not skrivforb:
+        skrivforb = apiforbindelse()
+
+    if not 'Authorization' in skrivforb.headers:
+        print( f"Logg inn i skriveapi driftsmiljø {skrivmiljo} " ) 
+        skrivforb.login( miljo=skrivmiljo, username=username, pw=pw )
+
+    # Konstruerer klientinfo
+    minklient = 'sekkeBK_v2_' + str( kommunenummer )
+
+    if dryrun: 
+        minklient += '_dryrun'
+
+    retthull['klientinfo'] = minklient
+    skrivforb.klientinfo( minklient )
+
+    for enEndring in endringssett: 
+    # if True:
+        enEndring = endringssett[0]
+
+        skrivtil = skrivnvdb.endringssett( enEndring )
+        skrivtil.forbindelse = skrivforb 
+        skrivtil.registrer( dryrun=dryrun)
+        if skrivtil.status == 'registrert': 
+            skrivtil.startskriving( )
+
+    # from IPython import embed; embed() # For debugging 
+
+    # Lagrer til fil det vi skreiv
+    retthull.to_file( loggskrivfilnavn, layer=minklient, driver='GPKG')
+
+# from IPython import embed; embed() # For debugging 
 if __name__ == '__main__': 
+    t0 = datetime.now()
     # resultat = finnSekkepost( 4204 )
-    endringssett = tetthull_lagendringssett( 4223, inkluder_uoffisiell=True )
+    # (retthull, endringssett) = tetthull_lagendringssett( 4223, inkluder_uoffisiell=True )
+    retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=True, miljo='testles', skrivmiljo='testskriv'   )
+    # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles' )
+    print(f"Total kjøretid:  {datetime.now()-t0}")
