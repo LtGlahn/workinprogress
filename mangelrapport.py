@@ -285,14 +285,15 @@ def finnMeter( vref, returnerTilmeter=False  ):
 ##
 #######################################################
 if __name__ == '__main__': 
-    print( 'Mangelrapport 2.7 - Korteste rute blir noen ganger helt feil')
+    print( 'Mangelrapport 2.8 - Diverse finpuss')
     t0 = datetime.now()
 
     #####################################################
     ## 
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
-    FILNAVN = 'checkCoverage 904_20220126.LOG'
+    # FILNAVN = 'checkCoverage 905_20220207.LOG'
+    FILNAVN = 'checkCoverage 904_20220207.LOG'
 
     gpkg_fil = 'mangelrapport.gpkg'
     dd = lesmangel(  FILNAVN )
