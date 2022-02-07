@@ -104,8 +104,8 @@ venv.bak/
 .mypy_cache/
 
 # Diverse mangelrapport-tjafs som vi ignorerer
-# *.gpkg  # Tør ikke ignorere disse, ettersom vi har et gpkg dataeksempler i repos
-# *.xlsx  # Tør ikke ignorere disse, ettersom vi har et xlsx dataeksempler i repos
+*.gpkg  
+*.xlsx 
 *.txt 
 *.qgz
 skrot/*
