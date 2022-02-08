@@ -293,7 +293,7 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
     # FILNAVN = 'checkCoverage 905_20220207.LOG'
-    FILNAVN = 'checkCoverage 904_20220207.LOG'
+    FILNAVN = 'checkCoverage 904_20220208.LOG'
 
     gpkg_fil = 'mangelrapport.gpkg'
     dd = lesmangel(  FILNAVN )

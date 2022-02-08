@@ -64,7 +64,7 @@ Så logikken her blir følgende:
 """
 
 from copy import deepcopy
-# import pdb
+import pdb
 from datetime import datetime
 
 import pandas as pd
@@ -403,7 +403,15 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
         col = [ 'objekttype', 'vref' ]
         bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse'  ]
         col.extend( [x for x in bkcol if x in finnerdf.columns ]   )
-        print( finnerdf[col].sort_values( 'vref'))
+        # print( finnerdf[col].sort_values( 'vref'))
+        for ix, row in finnerdf[col].sort_values('vref').iterrows():
+            tempstring = ''
+            for cc in col: 
+                tempstring += str( row[cc] )
+                tempstring += '    '
+            print( tempstring )
+
+        # from IPython import embed; embed() # For debugging 
         feiler = retthull[ retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ].copy()
         retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
 
@@ -453,10 +461,9 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
             endringsettmal['registrer']['vegobjekter'] = []
             count = 0
 
-    # Ferdig med alle iterasjoner, føyer til den aller siste gjengen 
+    # Ferdig med alle iterasjoner, føyer til den aller siste gjengen (evt den aller første, hvis vi har færre enn maks_endringer )
     if len( endringsettmal['registrer']['vegobjekter'] ) > 0: 
         endringssett.append( deepcopy( endringsettmal ))
-        
     return ( deepcopy(retthull), endringssett ) 
 
 
@@ -530,8 +537,6 @@ def retthull_skrivnvdb(   kommunenummer, filnavn='mangelrapport.gpkg', loggskriv
     skrivforb.klientinfo( minklient )
 
     for enEndring in endringssett: 
-    # if True:
-        enEndring = endringssett[0]
 
         skrivtil = skrivnvdb.endringssett( enEndring )
         skrivtil.forbindelse = skrivforb 
@@ -539,16 +544,19 @@ def retthull_skrivnvdb(   kommunenummer, filnavn='mangelrapport.gpkg', loggskriv
         if skrivtil.status == 'registrert': 
             skrivtil.startskriving( )
 
-    # from IPython import embed; embed() # For debugging 
 
     # Lagrer til fil det vi skreiv
-    retthull.to_file( loggskrivfilnavn, layer=minklient, driver='GPKG')
+    # retthull.to_file( loggskrivfilnavn, layer=minklient, driver='GPKG')
+
+    # from IPython import embed; embed() # For debugging 
+
 
 # from IPython import embed; embed() # For debugging 
 if __name__ == '__main__': 
     t0 = datetime.now()
     # resultat = finnSekkepost( 4204 )
-    # (retthull, endringssett) = tetthull_lagendringssett( 4223, inkluder_uoffisiell=True )
-    retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=True, miljo='testles', skrivmiljo='testskriv'   )
+    # (retthull, endringssett) = tetthull_lagendringssett( 4223, inkluder_uoffisiell=False )
+    retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv'   )
+    # retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=True, miljo='testles', skrivmiljo='testskriv'   )
     # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles' )
     print(f"Total kjøretid:  {datetime.now()-t0}")
