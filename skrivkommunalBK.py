@@ -73,11 +73,34 @@ import fiona
 
 import warnings # Ignorerer den irriterende meldingen fra geopandas.from_file()
 warnings.filterwarnings("ignore", message="Sequential read of iterator was interrupted. Resetting iterator. This can negatively impact the performance.")
-
+warnings.filterwarnings("ignore", message="The spaces in these column names will not be changed. In pandas versions < 0.14, spaces were converted to underscores.")
 
 import STARTHER
 import skrivnvdb 
 from nvdbapiv3 import  nvdbFagdata, apiforbindelse 
+from nvdbgeotricks import finnoverlapp 
+
+
+def wrap_finnoverlapp( dfA, dfB, prefixA=None, prefixB=None ):
+    """
+    Finner overlapp mellom to (geo)dataframe; brukes til å sjekke at vi har reell overlapp og ikke berøring (slik NVDBAPI LES gir oss)
+
+    Wrapper rundt funksjonen finnoverlapp i https://github.com/LtGlahn/nvdbapi-V3/blob/master/nvdbgeotricks.py 
+
+    Forutsetter at dfA har disse kolonnene, som så døpes om til de navnene finnoverlapp foretrekker 
+        sqldump_vlenkid           int64
+        sqldump_frapos          float64
+        sqldump_tilpos          float64
+
+    """
+    dfAcopy = dfA.copy()
+    dfAcopy['veglenkesekvensid'] = dfAcopy['sqldump_vlenkid']
+    dfAcopy['startposisjon']     = dfAcopy['sqldump_frapos']
+    dfAcopy['sluttposisjon']     = dfAcopy['sqldump_tilpos']
+
+    dfAcopy = dfAcopy[['veglenkesekvensid', 'startposisjon', 'sluttposisjon', 'sqldump_datarad', 'vref' ]]
+
+    return finnoverlapp( dfAcopy, dfB, prefixB=prefixB )
 
 def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=False, miljo='prodles', username='jajens', pw='', forb=None  ): 
     """
@@ -351,6 +374,7 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
     retthull = bkhull[ bkhull['vegkategori'] == 'K']
     retthull = retthull[ retthull['trafikantgruppe'] == 'K']
     retthull = retthull[ retthull['kommune'] == kommunenummer ]
+    retthull = retthull[ retthull['sqldump_length'] > 1 ]
     # retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
 
     # filtrerer ut dem som har avvikende veglenkesekvens ID 
@@ -392,7 +416,8 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
             finnerdata.extend( sok.to_records() )
 
     if len( finnerdata ) > 0: 
-        print( f"Finner {len( finnerdata)} bruksklasse-strekninger der mangelrapport sier det mangler data i kommune {kommunenummer}, ignorerer disse:")
+        print( f"Har hentet {len( finnerdata)} strekninger med bruksklassedata fra LES der mangelrapport sier det mangler data i kommune {kommunenummer}, sjekker om det er reelt:")
+
         finnerdf = pd.DataFrame( finnerdata )
         finnerdf['kortform'] = finnerdf['startposisjon'].astype(str) + '-' + finnerdf['sluttposisjon'].astype(str) + '@' + finnerdf['veglenkesekvensid'].astype(str)
         finnerdf.fillna('', inplace=True )
@@ -401,23 +426,45 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
         # col = [ 'kommune', 'objekttype', 'vref', 'trafikantgruppe' ]
         # bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse', 'Maks vogntoglengde', 'Maks totalvekt', 'Veggruppe', 'Modulvogntog', 'kortform'  ]
         col = [ 'objekttype', 'vref' ]
-        bkcol = [ 'Strekningsbeskrivelse', 'Bruksklasse'  ]
+        bkcol = [ 'Bruksklasse', 'Strekningsbeskrivelse'  ]
         col.extend( [x for x in bkcol if x in finnerdf.columns ]   )
         # print( finnerdf[col].sort_values( 'vref'))
-        for ix, row in finnerdf[col].sort_values('vref').iterrows():
-            tempstring = ''
-            for cc in col: 
-                tempstring += str( row[cc] )
-                tempstring += '    '
-            print( tempstring )
+        # for ix, row in finnerdf[col].sort_values('vref').iterrows():
+        #     tempstring = ''
+        #     for cc in col: 
+        #         tempstring += str( row[cc] )
+        #         tempstring += '    '
+        #     print( tempstring )
 
-        # from IPython import embed; embed() # For debugging 
-        feiler = retthull[ retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ].copy()
-        retthull = retthull[ ~retthull['sqldump_vlenkid'].isin( list( finnerdf['veglenkesekvensid'] )) ]
+        # sjekker om dette er reelt overlapp, eller kun at objektene berører den tomme strekningen (LES gir oss data som berører)
+        reel_overlapp = wrap_finnoverlapp( retthull, finnerdf, prefixA=None, prefixB='B_' )
+
+        # Debug
+        retthullkopi = retthull.copy()
+
+        if len( reel_overlapp ) > 0: 
+            col2 =  { 'B_'+x : x  for x in col if not 'vref' in x }
+            reel_overlapp.rename( columns=col2, inplace=True )
+            reel_overlapp = reel_overlapp.drop_duplicates( subset=['sqldump_datarad', 'objekttype'])
+            print( f"Fant {len(reel_overlapp)} tilfeller med reell overlapp, overskriver IKKE disse ")
+            for ix, row in reel_overlapp[col].sort_values('vref').iterrows(): 
+                tempstring = ''
+                for cc in col: 
+                    tempstring += str( row[cc] )
+                    tempstring += '    '
+                print( tempstring )
+
+            feiler_reelt = retthull[  retthull['sqldump_datarad'].isin(  list( reel_overlapp['sqldump_datarad'] )) ].copy()
+            retthull     = retthull[ ~retthull['sqldump_datarad'].isin(  list( reel_overlapp['sqldump_datarad'] )) ]
+        else: 
+            print( "Fant ingen reell overlapp, kun berøring mellom der vi mangler data og der vi har bruksklasse-data. ")
+
+    # from IPython import embed; embed() # For debugging 
+
 
     # Sjekker at lenkene faktisk finnes. Kan droppes i PROD? (Ideelt sett, iallfall)
     forkast = []
-    print( f"Sjekker om alle {len( list(set(list(retthull['sqldump_vlenkid'] ))) )} lenkene i mangelrapport faktisk finnes (kan potensielt droppes når vi går mot PROD?")
+    # print( f"Sjekker om alle {len( list(set(list(retthull['sqldump_vlenkid'] ))) )} lenkene i mangelrapport faktisk finnes (kan potensielt droppes når vi går mot PROD?")
     for lenke in set( list( retthull['sqldump_vlenkid'] )): 
         r = forb.les(   '/vegnett/veglenkesekvenser/segmentert/' + str( lenke )  )
         if not r.ok: 
@@ -528,7 +575,7 @@ def retthull_skrivnvdb(   kommunenummer, filnavn='mangelrapport.gpkg', loggskriv
         skrivforb.login( miljo=skrivmiljo, username=username, pw=pw )
 
     # Konstruerer klientinfo
-    minklient = 'sekkeBK_v2_' + str( kommunenummer )
+    minklient = 'sekkeBK_v3_' + str( kommunenummer )
 
     if dryrun: 
         minklient += '_dryrun'
@@ -546,9 +593,8 @@ def retthull_skrivnvdb(   kommunenummer, filnavn='mangelrapport.gpkg', loggskriv
 
 
     # Lagrer til fil det vi skreiv
-    # retthull.to_file( loggskrivfilnavn, layer=minklient, driver='GPKG')
-
-    # from IPython import embed; embed() # For debugging 
+    if len( retthull ) > 0: 
+        retthull.to_file( loggskrivfilnavn, layer=minklient, driver='GPKG')
 
 
 # from IPython import embed; embed() # For debugging 
@@ -556,7 +602,7 @@ if __name__ == '__main__':
     t0 = datetime.now()
     # resultat = finnSekkepost( 4204 )
     # (retthull, endringssett) = tetthull_lagendringssett( 4223, inkluder_uoffisiell=False )
-    retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv'   )
-    # retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=True, miljo='testles', skrivmiljo='testskriv'   )
+    # retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=False, miljo='testles', skrivmiljo='testskriv'   )
+    # retthull_skrivnvdb( 4223, inkluder_uoffisiell=False, dryrun=True, miljo='testles', skrivmiljo='testskriv'   )
     # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles' )
     print(f"Total kjøretid:  {datetime.now()-t0}")
