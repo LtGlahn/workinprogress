@@ -268,7 +268,7 @@ def finnSekkepost( kommunenummer, inkluder_offisiell=True, inkluder_uoffisiell=F
         for idx, sjekk in enumerate( resultat[1:] ):
             for verdi in mintestmal.keys(): 
                 if verdi in sjekk.columns and sjekk[verdi].iloc[0] != mintestmal[verdi]: 
-                    print( f"ADVARSEL {objtyper[0]} vs {objtyper[idx+1]}, ulik sekkepost-verdi {verdi}:  {mintestmal[verdi]} vs {sjekk[verdi].iloc[0]} ")
+                    print( f"ADVARSEL kommune {kommunenummer} for {objtyper[0]} vs {objtyper[idx+1]}, ulik sekkepost-verdi {verdi}:  {mintestmal[verdi]} vs {sjekk[verdi].iloc[0]} ")
     else: 
         print( "Tomt resultatsett - har du angitt både inkluder_offisiell=False og inkluder_offisiell=False i funksjonskallet?")
 
@@ -374,7 +374,7 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
     retthull = bkhull[ bkhull['vegkategori'] == 'K']
     retthull = retthull[ retthull['trafikantgruppe'] == 'K']
     retthull = retthull[ retthull['kommune'] == kommunenummer ]
-    retthull = retthull[ retthull['sqldump_length'] > 1 ]
+    retthull = retthull[ retthull['sqldump_length'] > 2 ]
     # retthull = retthull[ retthull['kortform'].str.contains( '0.0-1.0' )]
 
     # filtrerer ut dem som har avvikende veglenkesekvens ID 
@@ -491,6 +491,8 @@ def tetthull_lagendringssett( kommunenummer, filnavn='mangelrapport.gpkg', inklu
     # mal_overordnet['registrer']['vegobjekter'] = []
     tempId = -10000
 
+    print( f"Lager endringssett for {len( skrivdisse)} strekninger for kommune {kommunenummer}")
+
     maks_endringer = 500
     count = 0 
     for idx, row in skrivdisse.iterrows():
@@ -596,13 +598,32 @@ def retthull_skrivnvdb(   kommunenummer, filnavn='mangelrapport.gpkg', loggskriv
     if len( retthull ) > 0: 
         retthull.to_file( loggskrivfilnavn, layer=minklient, driver='GPKG')
 
+def retthelefylket(  fylkesnummer, filnavn='mangelrapport.gpkg', loggskrivfilnavn='loggskriv.gpkg', inkluder_offisiell=True, inkluder_uoffisiell=False, 
+                              miljo='prodles', skrivmiljo='testskriv', dryrun=True, username='jajens', pw='', forb=None, skrivforb=None ):
+    """
+    Oppdaterer sekkepost-verdier for alle kommuner i et helt fylke. Se dokumentasjonen for retthull_skrivnvdb
+    """
+
+    tempforb = apiforbindelse( 'prodles')
+    allekommuner = tempforb.les('/omrader/kommuner' ).json()
+    kommuner = [ x for x in allekommuner if x['fylke'] == fylkesnummer ]
+    # kommuner = [ x for x in kommuner if x['nummer'] > 3434  ]
+
+    for kommune in kommuner: 
+        print( f"Tetter hull i sekkepostverdier for kommune {kommune['nummer']} {kommune['navn']} ")
+        retthull_skrivnvdb( kommune['nummer'], filnavn=filnavn, loggskrivfilnavn=loggskrivfilnavn, inkluder_offisiell=inkluder_offisiell, 
+                        inkluder_uoffisiell=inkluder_uoffisiell, miljo=miljo, skrivmiljo=skrivmiljo, dryrun=dryrun, username=username, pw=pw, forb=forb, skrivforb=skrivforb )
+
 
 # from IPython import embed; embed() # For debugging 
 if __name__ == '__main__': 
     t0 = datetime.now()
     # resultat = finnSekkepost( 4204 )
     # (retthull, endringssett) = tetthull_lagendringssett( 4223, inkluder_uoffisiell=False )
-    # retthull_skrivnvdb( 4223, inkluder_uoffisiell=True, dryrun=False, miljo='testles', skrivmiljo='testskriv'   )
-    # retthull_skrivnvdb( 4223, inkluder_uoffisiell=False, dryrun=True, miljo='testles', skrivmiljo='testskriv'   )
+    # retthull_skrivnvdb( 4204, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv', pw=''  )
+    # retthull_skrivnvdb( 4203, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv', pw=''  )
+    # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles', skrivmiljo='testskriv', pw=''   )
     # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles' )
+    retthelefylket( 50, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv', pw=''  )
+
     print(f"Total kjøretid:  {datetime.now()-t0}")
