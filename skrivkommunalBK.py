@@ -624,6 +624,6 @@ if __name__ == '__main__':
     # retthull_skrivnvdb( 4203, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv', pw=''  )
     # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles', skrivmiljo='testskriv', pw=''   )
     # retthull_skrivnvdb( 301, inkluder_uoffisiell=True, dryrun=False, miljo='testles' )
-    retthelefylket( 50, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv', pw=''  )
+    # retthelefylket( 15, inkluder_uoffisiell=True, dryrun=False, miljo='prodles', skrivmiljo='prodskriv', pw=''  )
 
     print(f"Total kjøretid:  {datetime.now()-t0}")

@@ -44,6 +44,7 @@ def lesmangel( filnavn ):
 
     """
 
+    minstelengde = 3 # Biter kortere enn dette blir LINESTRING( start_wkt, slutt_wkt )
     lines = []
     data = [ ]
     with open( filnavn ) as f: 
@@ -98,12 +99,13 @@ def lesmangel( filnavn ):
             else: 
                 print( 'Fikk ikke gyldige data for geometrispørring sluttpunkt', str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )   )
 
-            # Henter rute 
-            rute = nvdbapiv3.hentrute( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), 
-                                       str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )  )
-
+            # Henter rute for segmenter > 3m (minstelengde)
             suksess = False 
             rutefeil = False
+            # if cc['sqldump_length'] > minstelengde: 
+            rute = nvdbapiv3.hentrute( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), 
+                                    str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )  )
+
             temp_rute = []
             for segment in rute: 
                 seg = { **segment, **cc }
@@ -123,7 +125,7 @@ def lesmangel( filnavn ):
                 data.extend( temp_rute )
 
             # Prøver å hente data fra NVDB api segmentert vegnett hvis rute-spørring feiler
-            if not suksess: 
+            if not suksess and cc['sqldump_length'] > minstelengde: 
                 if cc['sqldump_length'] > 1: 
                     forb = nvdbapiv3.apiforbindelse()
                     r = forb.les( '/vegnett/veglenkesekvenser/segmentert/' + str( cc['sqldump_vlenkid'] ))
@@ -141,7 +143,10 @@ def lesmangel( filnavn ):
  
             # Fallback hvis ingenting av det andre funker 
             if not suksess: 
-                cc['rute_stedfesting'] = 'FEILER, kun start-sluttpunkt'
+                if cc['sqldump_length'] > minstelengde: 
+                    cc['rute_stedfesting'] = 'FEILER, kun start-sluttpunkt'
+                else:
+                    cc['rute_stedfesting'] = 'Kort bit, kun start-sluttpunkt'
 
                 try: 
                     p1 = wkt.loads( cc['start_wkt'] )
@@ -293,7 +298,7 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
     # FILNAVN = 'checkCoverage 905_20220207.LOG'
-    FILNAVN = 'checkCoverage 904_20220208.LOG'
+    FILNAVN = 'checkCoverage 904_20220212_1054.LOG'
 
     gpkg_fil = 'mangelrapport.gpkg'
     dd = lesmangel(  FILNAVN )
