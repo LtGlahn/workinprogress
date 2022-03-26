@@ -102,31 +102,30 @@ def lesmangel( filnavn ):
             # Henter rute for segmenter > 3m (minstelengde)
             suksess = False 
             rutefeil = False
-            # if cc['sqldump_length'] > minstelengde: 
-            rute = nvdbapiv3.hentrute( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), 
-                                    str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )  )
+            if cc['sqldump_length'] > minstelengde: 
+                rute = nvdbapiv3.hentrute( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), 
+                                        str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )  )
 
-            temp_rute = []
-            for segment in rute: 
-                seg = { **segment, **cc }
+                temp_rute = []
+                for segment in rute: 
+                    seg = { **segment, **cc }
 
-                # Sjekker at vi er på samme veglenkesekvens. I noen tilfeller vil vi velge ei anna rute fra A til B hvis det er kortere
-                if seg['veglenkesekvensid'] == seg['sqldump_vlenkid']: 
-                    seg['stedfesting'] = 'RUTE'
-                    temp_rute.append( seg  )
-                    suksess = True 
-                else: 
-                    rutefeil = True 
+                    # Sjekker at vi er på samme veglenkesekvens. I noen tilfeller vil vi velge ei anna rute fra A til B hvis det er kortere
+                    if seg['veglenkesekvensid'] == seg['sqldump_vlenkid']: 
+                        seg['stedfesting'] = 'RUTE'
+                        temp_rute.append( seg  )
+                        suksess = True 
+                    else: 
+                        rutefeil = True 
 
-            # Forkaster forslaget hvis det er kommet rutefeil 
-            if rutefeil: 
-                suksess = False 
-            elif suksess: 
-                data.extend( temp_rute )
+                # Forkaster forslaget hvis det er kommet rutefeil 
+                if rutefeil: 
+                    suksess = False 
+                elif suksess: 
+                    data.extend( temp_rute )
 
-            # Prøver å hente data fra NVDB api segmentert vegnett hvis rute-spørring feiler
-            if not suksess and cc['sqldump_length'] > minstelengde: 
-                if cc['sqldump_length'] > 1: 
+                # Prøver å hente data fra NVDB api segmentert vegnett hvis rute-spørring feiler
+                if not suksess and cc['sqldump_length'] > minstelengde: 
                     forb = nvdbapiv3.apiforbindelse()
                     r = forb.les( '/vegnett/veglenkesekvenser/segmentert/' + str( cc['sqldump_vlenkid'] ))
                     if r.ok: 
@@ -141,12 +140,12 @@ def lesmangel( filnavn ):
                                     data.append( nyttseg )
                                     suksess = True 
  
-            # Fallback hvis ingenting av det andre funker 
+            # Fallback hvis lengde < minstelengde, eller ingenting av det andre funker 
             if not suksess: 
                 if cc['sqldump_length'] > minstelengde: 
-                    cc['rute_stedfesting'] = 'FEILER, kun start-sluttpunkt'
+                    cc['stedfesting'] = 'FEILER, kun start-sluttpunkt'
                 else:
-                    cc['rute_stedfesting'] = 'Kort bit, kun start-sluttpunkt'
+                    cc['stedfesting'] = 'Kort bit, geometri ut fra start=>sluttpunkt'
 
                 try: 
                     p1 = wkt.loads( cc['start_wkt'] )
@@ -160,7 +159,7 @@ def lesmangel( filnavn ):
 
                 except KeyError as ERR: 
                     print( 'Backup-metode for stedfesting feiler', cc['sqldump_vref'], ERR )
-                    cc['rute_stedfesting'] = 'FEILER, lager fiktiv linje uti Norskehavet'
+                    cc['stedfesting'] = 'FEILER, lager fiktiv linje uti Norskehavet'
                     cc['geometri'] =  'LineString (101237.70285620921640657 7128534.10969377029687166, 225651.72560383414383978 7241528.48784137237817049)'
 
                 data.append( cc )
@@ -169,6 +168,9 @@ def lesmangel( filnavn ):
 
             if count == 1 or count == 10 or count % 50 == 0: 
                 print( f'Prosesserte rad {count} av {len(lines)}')
+
+            # if cc['sqldump_length'] < minstelengde:
+            #     from IPython import embed; embed() # For debugging 
 
     return data 
 
@@ -298,9 +300,9 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
     # FILNAVN = 'checkCoverage 905_20220207.LOG'
-    FILNAVN = 'checkCoverage 904_20220212_1054.LOG'
+    FILNAVN = 'checkCoverageDEBUG.LOG'
 
-    gpkg_fil = 'mangelrapport.gpkg'
+    gpkg_fil = 'mangelrapportDEBUG.gpkg'
     dd = lesmangel(  FILNAVN )
 
     mindf = pd.DataFrame( dd  ) 
