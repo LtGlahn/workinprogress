@@ -47,7 +47,7 @@ def lesmangel( filnavn ):
     minstelengde = 3 # Biter kortere enn dette blir LINESTRING( start_wkt, slutt_wkt )
     lines = []
     data = [ ]
-    with open( filnavn ) as f: 
+    with open( filnavn, errors='ignore' ) as f: 
         for linjenr, line in enumerate(f):
             if linjenr < 10: 
                 lines.append( line )
@@ -286,23 +286,10 @@ def finnMeter( vref, returnerTilmeter=False  ):
         return fraMeter 
 
 
-###################################################
-## 
-## Scriptet starter her
-##
-#######################################################
-if __name__ == '__main__': 
-    print( 'Mangelrapport 2.8 - Diverse finpuss')
-    t0 = datetime.now()
+def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
 
-    #####################################################
-    ## 
-    ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/
-    ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
-    # FILNAVN = 'checkCoverage 905_20220207.LOG'
-    FILNAVN = 'checkCoverageDEBUG.LOG'
+    tx = datetime.now()
 
-    gpkg_fil = 'mangelrapportDEBUG.gpkg'
     dd = lesmangel(  FILNAVN )
 
     mindf = pd.DataFrame( dd  ) 
@@ -371,7 +358,7 @@ if __name__ == '__main__':
         aggGdf[ aggGdf['vegkategori'].str.contains('K')].to_file( gpkg_fil, layer=fanenavn + '_K', driver='GPKG')
         # print( "Har kommentert ut skriving til gpkg")
 
-        tidsbruk = datetime.now() - t0 
+        tidsbruk = datetime.now() - tx
         print( F"tidsbruk Bk{objekttype}: {tidsbruk.total_seconds()} sekunder")
 
         # Summerer statistikk per vegkategori og per kommune: 
@@ -381,23 +368,56 @@ if __name__ == '__main__':
         metadata = metadata = pd.DataFrame( { 'verdi' : [ str(t0), FILNAVN, fanenavn ] }, index=['Dato', 'Filnavn', 'Type' ] )
 
         # Skriver til excel: 
-        writer = pd.ExcelWriter( 'mangelrapport.xlsx', engine='xlsxwriter')
+        # excelwriter = pd.ExcelWriter( EXCELFIL, engine='xlsxwriter')
 
         # Døper om kolonner så de matcher brukerønskene 
         mindf.rename( columns={ 'vref' :  'Vegreferanse', 'lengde' : 'Lengde hull', 'kommune' : 'Kommune',  'gate' : 'Gate', 'vegkategori' : 'Vegkategori'   }, inplace=True)
         col2 = [ 'Vegkategori', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'Gate', 'typeVeg']
-        mindf[ mindf['Lengde hull'] >= 1][col2].to_excel( writer, sheet_name= fanenavn, index=False )
-        writer.sheets[fanenavn].set_column( 0, 9, 20 )
-        writer.sheets[fanenavn].set_column( 1, 1, 60 )
-        writer.sheets[fanenavn].set_column( 6, 6, 40 )
+        mindf[ mindf['Lengde hull'] >= 1][col2].to_excel( excelwriter, sheet_name= fanenavn, index=False )
+        excelwriter.sheets[fanenavn].set_column( 0, 9, 20 )
+        excelwriter.sheets[fanenavn].set_column( 1, 1, 60 )
+        excelwriter.sheets[fanenavn].set_column( 6, 6, 40 )
 
-        statistikk.to_excel( writer, sheet_name='Statistikk', index=True )
-        aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'lengde', 'trafikantgruppe']].to_excel( writer, sheet_name='Annen visning '+fanenavn, index=False  )
-        metadata.to_excel( writer, sheet_name='Metadata', index=True  )
-        statistikk_perkommune.to_excel( writer, sheet_name='Statistikk per kommune', index=True )
+        statistikk.to_excel( excelwriter, sheet_name='Statistikk ' + fanenavn, index=True )
+        aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'lengde', 'trafikantgruppe']].to_excel( excelwriter, sheet_name='Annen visning '+fanenavn, index=False  )
+        metadata.to_excel( excelwriter, sheet_name='Metadata' + fanenavn, index=True  )
+        statistikk_perkommune.to_excel( excelwriter, sheet_name='Statistikk per kommune', index=True )
 
-        writer.save()
+        # excelwriter.save()
 
     else: 
         print( f'Fikk ikke lest inn gyldige data fra {FILNAVN}')
 
+###################################################
+## 
+## Scriptet starter her
+##
+#######################################################
+if __name__ == '__main__': 
+
+    #####################################################
+    ## 
+    ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
+    ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
+    loggfiler = [ 'checkCoverage 901_20220420.LOG', 'checkCoverage 903_20220420.LOG', 'checkCoverage 905_20220420.LOG']
+
+
+    gpkg_fil = 'mangelrapportDEBUG.gpkg'
+    gpkg_fil = 'mangelrapport.gpkg'
+
+    # Skriver til excel:
+    excel_fil = 'mangelrapport.xlsx' 
+    excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
+    
+
+    print( 'Mangelrapport 3.0 - Flere objekttyper ')
+    t0 = datetime.now()
+
+    for FILNAVN in loggfiler: 
+
+        lagmangel( FILNAVN, gpkg_fil, excelwriter )
+
+
+    excelwriter.save()
+    tidsbruk = datetime.now() - t0 
+    print( F"tidsbruk alle objekttyper: {tidsbruk.total_seconds()} sekunder")
