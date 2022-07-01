@@ -1,6 +1,8 @@
 from copy import deepcopy 
 import pdb 
 from datetime import datetime
+import string
+from turtle import pos
 
 from shapely import wkt 
 from shapely.geometry import LineString, MultiLineString
@@ -12,11 +14,83 @@ import xlsxwriter
 import STARTHER 
 import nvdbapiv3
 
+
+def lesLoggfil( filnavn:string  ): 
+    """
+    Minimalistisk (forkortet) utgave av funksjon "lesmangel" der vi ikke gjor NOEN gjettinger
+    på hva som finnes av data i mottatt loggfil. Vi gjør heller ingen oppslag på stedfesting etc. 
+
+    Se dokumentasjon for lesmangel
+
+    ARGUMENTS
+        filnavn : Tekst med filnavn 
+
+    KEYWORDS
+        N/A
+
+    RETURNS
+        Liste med json, der nøkkelordene er kolonneoverskriftet plukket fra rad 11 (rad 10 med null-basert tellemåte)
+    """
+    lines = []
+    data =  []
+    with open( filnavn, errors='ignore' ) as f: 
+        for linjenr, line in enumerate(f):
+            if linjenr < 10: 
+                lines.append( line )
+            else: 
+                eiLinje = line.replace( ',', '.') # Ugrei blanding av desimalskilletegn, både , og .
+                mylist = eiLinje.split( '|' )
+                if len( mylist ) > 4: 
+                    lines.append( mylist )
+
+    # De  første radene har verdifulle metadata, så kommer dataverdiene iblandet litt tull og tøys
+    miljo = lines[2].split()[2]
+    dato  = lines[2].split()[3]
+    klokke = lines[2].split()[4]
+    klokke = klokke.replace( '.', ':')
+    beskrivelse = lines[4].strip()
+    datauttak = lines[5].strip()
+    parametre = lines[7].strip()    
+
+    # Kolonnenavn og posisjon. Her er det dynamisk (ta det du finner), i motsetning til lesmangelrapport+finnkolonnepos, 
+    # som er avhengig av at gitte kolonnenavn finnes 
+    temp = [ x.strip() for x in lines[10]  if len( x.strip() ) > 0]
+    kolonneposisjoner =  { x : count for count, x in enumerate( temp ) }
+
+    # Iterer over alle linjer i fila
+    count = 0
+    for ll in lines: 
+        cc = lesmangelrad_generisk( ll, kolonneposisjoner )
+        if cc:
+            cc['sqldump_miljo']       = miljo 
+            cc['sqldump_dato']        = dato
+            cc['sqldump_klokke']      = klokke
+            cc['sqldump_beskrivelse'] = beskrivelse
+            cc['sqldump_datarad']     = count 
+            cc['sqldump_datauttak']   = datauttak
+            cc['sqldump_parametre']   = parametre
+            cc['filnavn']             = filnavn 
+
+            count += 1  
+
+            data.append( cc )
+
+    return data
+
 # Leser mangelrapport 
-def lesmangel( filnavn ): 
+def lesmangel( filnavn:string ): 
     """
     Leser mangelrapport (sql-dump) inn som rader 
 
+    ARGUMENTS
+        filnavn : Text string, filnavn med loggfil-data som vist nedenfor
+
+    KEYWORDS
+        N/A
+    
+    RETURNS Liste med dictionary 
+
+    EKSEMPEL 
 
     |       NID      MSLOC      MELOC     LENGTH VREF
     |---------- ---------- ---------- ---------- ----------------------------------------
@@ -24,7 +98,7 @@ def lesmangel( filnavn ):
     |     21802  .82250887  .82254903       .153 FV403 S2D1 seq=19000 (K)
 
 
-    Sukk...  nytt format som ser slik ut: 
+    Sukk...  nytt format som ser slik ut, må tolke kolonnenavn dynamisk
 
     Detaljer - checkCoverage 904
 
@@ -167,7 +241,7 @@ def lesmangel( filnavn ):
             count += 1 
 
             if count == 1 or count == 10 or count % 50 == 0: 
-                print( f'Prosesserte rad {count} av {len(lines)}')
+                print( f'Prosesserte rad {count} av {len(lines)} for fil {filnavn} ')
 
             # if cc['sqldump_length'] < minstelengde:
             #     from IPython import embed; embed() # For debugging 
@@ -210,6 +284,73 @@ def __finnListeIndex( minliste, mintekst ):
         return None
 
 
+def lesmangelrad_generisk( enkeltrad, kolonneposisjoner:dict ): 
+    """
+    Parser en enkelt rad fra mangelrapport
+    
+    Leser mangelrapport og returnerer dictionary med datavedier for veglenkeid, posisjon fra og til og VREF
+
+    Vil prøve å konvertere dataverdi til flyttall
+
+    ARGUMENTS  
+        enkeltrad: Liste med data for en enkelt rad
+
+        posisjoner : dictionary som angir hvilke kolonner som er hva, på stuktur { 'kolonnenavn1' : 0 }, 
+
+
+    RETURNS 
+        dictionary med struktur { 'kolonnenavn1' : dataverd1 }
+    """
+    returdata = None 
+
+    # Klipper vekk linjeskift hvis det finnes
+    if enkeltrad[-1] == '\n': 
+        enkeltrad = enkeltrad[0:-1]
+
+    # Har vil linje kun med skilletegn --- ? 
+    if len( [ x for x in enkeltrad if '---' in x ] ) > 5:
+        return None  
+
+
+    if len( enkeltrad ) != len( kolonneposisjoner ): 
+        return None 
+        # print( f"lesmangelrad_generisk: {len(enkeltrad)} kolonner i datasett, forventer {len(kolonneposisjoner)} ")
+
+    returdata = {}
+    for key, posisjon in kolonneposisjoner.items():
+        if len( enkeltrad ) > posisjon: 
+            returdata[key] =  lesdataverdi( enkeltrad[posisjon] )
+
+    # Så en sjekk om vi har lest linja med kolonnedefinisjoner
+    # I så fall er returdata['kolonnenavn'] == kolonnenavn
+    if len( [ x for x in returdata.keys() if x == returdata[x] ] ) > 0: 
+        return None 
+
+    return returdata
+
+def lesdataverdi( dataverdi:str ): 
+    """
+    Leser dataverdi og prøver å omsette til rett datatype: None (kun mellomrom), float, int eller str
+    """
+
+    retur = dataverdi
+    utenBlank = dataverdi.strip()
+    if len( utenBlank ) == 0: 
+        return None  
+
+    # Prøver å konvertere 
+    try: 
+        heltall = int( utenBlank )
+        flyttall = float( utenBlank )
+    except ValueError: 
+        return utenBlank # Returnerer tekst
+    else: 
+        if heltall == flyttall: 
+            return heltall 
+        else: 
+            return flyttall 
+
+    return utenBlank # Overflødig, men føles riktig å ha den med
 
 def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2, 'kommune' : 4, 'vref' : 3, 'length' : 5  } ): 
     """
@@ -295,6 +436,8 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
     mindf = pd.DataFrame( dd  ) 
     mindf['filnavn'] = FILNAVN
 
+    # from IPython import embed; embed() # For debugging 
+
 
     if len( mindf ) > 0: 
 
@@ -372,7 +515,7 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
 
         # Døper om kolonner så de matcher brukerønskene 
         mindf.rename( columns={ 'vref' :  'Vegreferanse', 'lengde' : 'Lengde hull', 'kommune' : 'Kommune',  'gate' : 'Gate', 'vegkategori' : 'Vegkategori'   }, inplace=True)
-        col2 = [ 'Vegkategori', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'Gate', 'typeVeg']
+        col2 = [ 'Vegkategori', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'Gate', 'typeVeg', 'fylke']
         mindf[ mindf['Lengde hull'] >= 1][col2].to_excel( excelwriter, sheet_name= fanenavn, index=False )
         excelwriter.sheets[fanenavn].set_column( 0, 9, 20 )
         excelwriter.sheets[fanenavn].set_column( 1, 1, 60 )
@@ -381,7 +524,7 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
         statistikk.to_excel( excelwriter, sheet_name='Statistikk ' + fanenavn, index=True )
         aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'lengde', 'trafikantgruppe']].to_excel( excelwriter, sheet_name='Annen visning '+fanenavn, index=False  )
         metadata.to_excel( excelwriter, sheet_name='Metadata' + fanenavn, index=True  )
-        statistikk_perkommune.to_excel( excelwriter, sheet_name='Statistikk per kommune', index=True )
+        statistikk_perkommune.to_excel( excelwriter, sheet_name='Statistikk per kommune' + fanenavn, index=True )
 
         # excelwriter.save()
 
@@ -399,18 +542,23 @@ if __name__ == '__main__':
     ## 
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
-    loggfiler = [ 'checkCoverage 901_20220420.LOG', 'checkCoverage 903_20220420.LOG', 'checkCoverage 905_20220420.LOG']
 
+    mangeldato = '20220621'
 
-    gpkg_fil = 'mangelrapportDEBUG.gpkg'
-    gpkg_fil = 'mangelrapport.gpkg'
+    loggfiler = [ f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG', 
+                 'checkCoverage 900_{mangeldato}.LOG', 'checkCoverage 902_{mangeldato}.LOG', 'checkCoverage 904_{mangeldato}.LOG']
+
+    mindato = datetime.now().strftime( "%Y-%m-%d")
+
+    # gpkg_fil = 'mangelrapportDEBUG.gpkg'
+    gpkg_fil = 'mangelrapport-BKoffisiell2022' + mindato + '.gpkg'
 
     # Skriver til excel:
-    excel_fil = 'mangelrapport.xlsx' 
+    excel_fil = 'mangelrapport-BKoffisiell' + mindato + '.xlsx' 
     excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
     
 
-    print( 'Mangelrapport 3.0 - Flere objekttyper ')
+    print( 'Mangelrapport 3.1 - Flere objekttyper, og fylke i excel-listene')
     t0 = datetime.now()
 
     for FILNAVN in loggfiler: 
