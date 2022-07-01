@@ -546,7 +546,7 @@ if __name__ == '__main__':
     mangeldato = '20220621'
 
     loggfiler = [ f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG', 
-                 'checkCoverage 900_{mangeldato}.LOG', 'checkCoverage 902_{mangeldato}.LOG', 'checkCoverage 904_{mangeldato}.LOG']
+                 f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG']
 
     mindato = datetime.now().strftime( "%Y-%m-%d")
 
