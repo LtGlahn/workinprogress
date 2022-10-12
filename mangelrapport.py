@@ -2,7 +2,7 @@ from copy import deepcopy
 import pdb 
 from datetime import datetime
 import string
-from turtle import pos
+import requests
 
 from shapely import wkt 
 from shapely.geometry import LineString, MultiLineString
@@ -140,8 +140,17 @@ def lesmangel( filnavn:string ):
     datauttak = lines[5].strip()
     parametre = lines[7].strip()
 
+    # Finner linjen som inneholder kolonnenavn. Dette pleide være linje 10, men varierer
+    kolonneNavnLinje = lines[10]
+    for temp1 in lines[0:20]: 
+        temp2 = ';'.join( temp1 ).lower()
+        if 'roadsysref' in temp2 and 'netelemid' in temp2: 
+            kolonneNavnLinje = temp1
+
+    # from IPython import embed; embed() # For debugging 
+
     # Rekkefølgen på kolonner varierer, så vi må finne ut hvilke kolonner som er hva 
-    kolonneposisjoner = finnkolonnepos(  lines[10]  )
+    kolonneposisjoner = finnkolonnepos( kolonneNavnLinje  )
 
     count = 0 
     # for ll in lines[0:100]:  # Debugvariant, kun ta de første N linjene
@@ -161,7 +170,8 @@ def lesmangel( filnavn:string ):
             p1 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
             if p1: 
                 cc['start_wkt']     = p1['geometri']['wkt']
-                cc['start_vref']    = p1['vegsystemreferanse']['kortform']
+                if 'kortform' in p1['vegsystemreferanse']: 
+                    cc['start_vref']    = p1['vegsystemreferanse']['kortform']
 
             else: 
                 print( 'Fikk ikke gyldige data for geometrispørring startpunkt', str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )   )
@@ -169,7 +179,8 @@ def lesmangel( filnavn:string ):
             p2 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
             if p2: 
                 cc['slutt_wkt']     = p2['geometri']['wkt']
-                cc['slutt_vref']    = p2['vegsystemreferanse']['kortform']
+                if 'kortform' in p2['vegsystemreferanse']:
+                    cc['slutt_vref']    = p2['vegsystemreferanse']['kortform']
             else: 
                 print( 'Fikk ikke gyldige data for geometrispørring sluttpunkt', str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )   )
 
@@ -437,13 +448,20 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
     mindf['filnavn'] = FILNAVN
 
     # from IPython import embed; embed() # For debugging 
+    mineFanenavn = {  '900' : 'Hull Tømmer off', 
+                      '901' : 'Hull Tømmer UOFF',
+                      '902' : 'Hull Spesial off',
+                      '903' : 'Hull Spesial UOFF',
+                      '904' : 'Hull Bk Normal off',
+                      '905' : 'Hull Bk Normal UOFF'
+                    }
 
 
     if len( mindf ) > 0: 
 
         # Finner objekttype
         objekttype = mindf.iloc[0]['sqldump_parametre'].split('=')[1].split()[0]
-        fanenavn = 'hullBk' + objekttype
+        fanenavn = mineFanenavn[ objekttype ]
 
         if 'gate' in mindf.columns: 
             mindf['gate'] = mindf['gate'].apply( lambda x : x['navn'] if isinstance(x, dict)  and 'navn' in x else ''  )
@@ -452,7 +470,12 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
         # mindf['vegkategori'] = mindf['vref'].apply( lambda x: getFirstChar(x) )
         mindf['vegnr'] = mindf['vref'].apply( lambda x: x.split()[0] if isinstance(x, str) and len(x) > 0 else ' ' )
 
-        col = [ 'vegkategori', 'vegnr', 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'gate',  'stedfesting', 
+        # Legger på kommunenavn 
+        komm = requests.get( 'https://nvdbapiles-v3.atlas.vegvesen.no/omrader/kommuner.json').json()
+        kommunenavn = { x['nummer'] : x['navn'] for x in komm }
+        mindf['kommunenavn'] = mindf['kommune'].map( kommunenavn ).fillna('')
+
+        col = [ 'vegkategori', 'vegnr', 'vref', 'lengde', 'trafikantgruppe', 'fylke', 'kommune', 'kommunenavn', 'gate',  'stedfesting', 
                 'vegkategori', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 
                 'sqldump_length', 'sqldump_vref', 'sqldump_miljo', 'sqldump_dato', 
                 'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 
@@ -486,7 +509,7 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
         temp = minGdf.dropna( subset=['vegkategori']  )
         temp['trafikantgruppe'].fillna( ' ', inplace=True )
 
-        aggGdf = temp[ (temp['sqldump_length'] >= 1) & (temp['lengde'] >= 1)  ].dissolve( by=[ 'vegnr', 'kommune'], aggfunc={ 'lengde' : 'sum',
+        aggGdf = temp[ (temp['sqldump_length'] >= 1) & (temp['lengde'] >= 1)  ].dissolve( by=[ 'vegnr', 'kommune', 'kommunenavn'], aggfunc={ 'lengde' : 'sum',
                  'fylke' : 'first',  'sqldump_length' : 'first' , 'vegkategori' : 'unique', 'trafikantgruppe' : 'unique'}, as_index=False )
                 
         aggGdf['vegkategori'] = aggGdf['vegkategori'].apply(         lambda x :  ','.join( list(x) ) )  
@@ -507,7 +530,7 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
         # Summerer statistikk per vegkategori og per kommune: 
         aggGdf['antall'] = 1 
         statistikk = aggGdf.groupby( ['vegkategori', 'trafikantgruppe']  ).agg({ 'antall' : 'count', 'lengde' : 'sum' } )
-        statistikk_perkommune = aggGdf.groupby( ['vegkategori', 'kommune', 'trafikantgruppe']  ).agg( {'antall' : 'count', 'lengde' : 'sum'}  )
+        statistikk_perkommune = aggGdf.groupby( ['vegkategori', 'kommune', 'kommunenavn', 'trafikantgruppe']  ).agg( {'antall' : 'count', 'lengde' : 'sum'}  )
         metadata = metadata = pd.DataFrame( { 'verdi' : [ str(t0), FILNAVN, fanenavn ] }, index=['Dato', 'Filnavn', 'Type' ] )
 
         # Skriver til excel: 
@@ -515,16 +538,17 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
 
         # Døper om kolonner så de matcher brukerønskene 
         mindf.rename( columns={ 'vref' :  'Vegreferanse', 'lengde' : 'Lengde hull', 'kommune' : 'Kommune',  'gate' : 'Gate', 'vegkategori' : 'Vegkategori'   }, inplace=True)
-        col2 = [ 'Vegkategori', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'Gate', 'typeVeg', 'fylke']
+        col2 = [ 'Vegkategori', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'kommunenavn', 'Gate', 'typeVeg', 'fylke']
         mindf[ mindf['Lengde hull'] >= 1][col2].to_excel( excelwriter, sheet_name= fanenavn, index=False )
         excelwriter.sheets[fanenavn].set_column( 0, 9, 20 )
         excelwriter.sheets[fanenavn].set_column( 1, 1, 60 )
         excelwriter.sheets[fanenavn].set_column( 6, 6, 40 )
 
-        statistikk.to_excel( excelwriter, sheet_name='Statistikk ' + fanenavn, index=True )
-        aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'lengde', 'trafikantgruppe']].to_excel( excelwriter, sheet_name='Annen visning '+fanenavn, index=False  )
-        metadata.to_excel( excelwriter, sheet_name='Metadata' + fanenavn, index=True  )
-        statistikk_perkommune.to_excel( excelwriter, sheet_name='Statistikk per kommune' + fanenavn, index=True )
+        # statistikk.to_excel( excelwriter, sheet_name='Statistikk ' + fanenavn, index=True )
+        # aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'kommunenavn', 'lengde', 'trafikantgruppe']].to_excel( excelwriter, sheet_name='Annen visning '+fanenavn, index=False  )
+        # metadata.to_excel( excelwriter, sheet_name='Metadata' + fanenavn, index=True  )
+        # statistikk_perkommune.to_excel( excelwriter, sheet_name='Statistikk per kommune' + fanenavn, index=True ) # 
+        # TODO: Må korte inn navnet på fanen, men tror den er overflødig
 
         # excelwriter.save()
 
@@ -543,22 +567,24 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
 
-    mangeldato = '20220621'
+    mangeldato = '20221012'
 
     loggfiler = [ f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG', 
-                 f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG']
+                  f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG' ]
+
+    # loggfiler = [ f'checkCoverage 905_{mangeldato}.LOG' ]
 
     mindato = datetime.now().strftime( "%Y-%m-%d")
 
     # gpkg_fil = 'mangelrapportDEBUG.gpkg'
-    gpkg_fil = 'mangelrapport-BKoffisiell2022' + mindato + '.gpkg'
+    gpkg_fil = 'mangelrapport-Bruksklasser' + mindato + '.gpkg'
 
     # Skriver til excel:
-    excel_fil = 'mangelrapport-BKoffisiell' + mindato + '.xlsx' 
+    excel_fil = 'mangelrapport-Bruksklasser' + mindato + '.xlsx' 
     excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
     
 
-    print( 'Mangelrapport 3.1 - Flere objekttyper, og fylke i excel-listene')
+    print( 'Mangelrapport 3.3 - Datafeil i header')
     t0 = datetime.now()
 
     for FILNAVN in loggfiler: 
