@@ -567,7 +567,7 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
 
-    mangeldato = '20221012'
+    mangeldato = '20221018'
 
     loggfiler = [ f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG', 
                   f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG' ]
