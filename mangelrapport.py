@@ -144,7 +144,7 @@ def lesmangel( filnavn:string ):
     kolonneNavnLinje = lines[10]
     for temp1 in lines[0:20]: 
         temp2 = ';'.join( temp1 ).lower()
-        if 'roadsysref' in temp2 and 'netelemid' in temp2: 
+        if 'vref' in temp2 and 'netelemid' in temp2: 
             kolonneNavnLinje = temp1
 
     # from IPython import embed; embed() # For debugging 
@@ -195,7 +195,7 @@ def lesmangel( filnavn:string ):
                 for segment in rute: 
                     seg = { **segment, **cc }
 
-                    # Sjekker at vi er på samme veglenkesekvens. I noen tilfeller vil vi velge ei anna rute fra A til B hvis det er kortere
+                    # Sjekker at vi er på samme veglenkesekvens. I noen tilfeller vil vi velge ei anna rute fra A til B hvis det er kortere enn å følge veglenkesekvensen 
                     if seg['veglenkesekvensid'] == seg['sqldump_vlenkid']: 
                         seg['stedfesting'] = 'RUTE'
                         temp_rute.append( seg  )
@@ -265,12 +265,11 @@ def finnkolonnepos( kolonnerad ):
     """
 
     # Slik kolonnene var organisert 20.12.2021
-    posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2, 'kommune' : 4, 'vref' : 3, 'length' : 5  }
+    posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2,  'vref' : 3, 'length' : 4  }
 
     # Oversettelse mellom de begrepene vi bruker og de kryptiske navnene i SQL-dumpen
     oversettelse={ 'vlenkid' : 'netelemid', 
                     'frapos' : 'nstartpos', 'tilpos' : 'nendpos', 
-                    'kommune' : 'municipality', 
                     'vref' : 'roadsysref', 
                     'length' : 'length'  
                     }
@@ -363,7 +362,7 @@ def lesdataverdi( dataverdi:str ):
 
     return utenBlank # Overflødig, men føles riktig å ha den med
 
-def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2, 'kommune' : 4, 'vref' : 3, 'length' : 5  } ): 
+def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' : 2, 'vref' : 3, 'length' : 4  } ): 
     """
     Parser en enkelt rad fra mangelrapport
     
@@ -391,7 +390,6 @@ def lesmangelrad( enkeltrad, posisjoner={ 'vlenkid' : 0, 'frapos' : 1, 'tilpos' 
             returdata['sqldump_vlenkid'] =      int( mylist[ posisjoner['vlenkid'] ])
             returdata['sqldump_frapos']  =    float( mylist[ posisjoner['frapos']  ])
             returdata['sqldump_tilpos']  =    float( mylist[ posisjoner['tilpos']  ])
-            returdata['sqldump_kommune']  =   int(   mylist[ posisjoner['kommune'] ])
             returdata['sqldump_vref']    =           mylist[ posisjoner['vref']  ].strip() 
             returdata['sqldump_length']  =    float( mylist[ posisjoner['length']]  )
 
@@ -567,10 +565,10 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
 
-    mangeldato = '20221018'
+    mangeldato = '20221024'
 
-    loggfiler = [ f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG', 
-                  f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG' ]
+    loggfiler = [ f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', 
+                  f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG' ]
 
     # loggfiler = [ f'checkCoverage 905_{mangeldato}.LOG' ]
 
@@ -584,7 +582,7 @@ if __name__ == '__main__':
     excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
     
 
-    print( 'Mangelrapport 3.3 - Datafeil i header')
+    print( 'Mangelrapport 3.4 - Nytt og enklere loggfil-format')
     t0 = datetime.now()
 
     for FILNAVN in loggfiler: 
