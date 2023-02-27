@@ -438,11 +438,11 @@ def finnMeter( vref, returnerTilmeter=False  ):
         return fraMeter 
 
 
-def lagmangel( FILNAVN, gpkg_fil, excelwriter ):
+def lagmangel( FILNAVN, gpkg_fil, excelwriter, forb=None ):
 
     tx = datetime.now()
 
-    dd = lesmangel(  FILNAVN )
+    dd = lesmangel(  FILNAVN, forb=forb )
 
     mindf = pd.DataFrame( dd  ) 
     mindf['filnavn'] = FILNAVN
@@ -575,12 +575,15 @@ if __name__ == '__main__':
     # loggfiler = [ f'checkCoverage 905_{mangeldato}.LOG' ]
 
     mindato = datetime.now().strftime( "%Y-%m-%d")
+    
+    forb = nvdbapiv3.apiforbindelse()
+    forb.velgmiljo( 'testles' )
 
     # gpkg_fil = 'mangelrapportDEBUG.gpkg'
-    gpkg_fil = 'mangelrapport-Bruksklasser' + mindato + '.gpkg'
+    gpkg_fil = 'mangelrapport-Bruksklasser-ATM' + mindato + '.gpkg'
 
     # Skriver til excel:
-    excel_fil = 'mangelrapport-Bruksklasser' + mindato + '.xlsx' 
+    excel_fil = 'mangelrapport-Bruksklasser-ATM' + mindato + '.xlsx' 
     excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
     
 
@@ -589,7 +592,7 @@ if __name__ == '__main__':
 
     for FILNAVN in loggfiler: 
 
-        lagmangel( FILNAVN, gpkg_fil, excelwriter )
+        lagmangel( FILNAVN, gpkg_fil, excelwriter, forb=forb )
 
 
     excelwriter.save()
