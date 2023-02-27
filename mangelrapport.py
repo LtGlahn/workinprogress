@@ -575,19 +575,22 @@ if __name__ == '__main__':
     # loggfiler = [ f'checkCoverage 905_{mangeldato}.LOG' ]
 
     mindato = datetime.now().strftime( "%Y-%m-%d")
-    
-    forb = nvdbapiv3.apiforbindelse()
-    forb.velgmiljo( 'testles' )
+
+    forb = None     
+    # forb = nvdbapiv3.apiforbindelse()
+    # forb.velgmiljo( 'testles' )
 
     # gpkg_fil = 'mangelrapportDEBUG.gpkg'
-    gpkg_fil = 'mangelrapport-Bruksklasser-ATM' + mindato + '.gpkg'
+    # gpkg_fil = 'mangelrapport-Bruksklasser-ATM' + mindato + '.gpkg'
+    gpkg_fil = 'mangelrapport-Bruksklasser' + mindato + '.gpkg'
 
     # Skriver til excel:
-    excel_fil = 'mangelrapport-Bruksklasser-ATM' + mindato + '.xlsx' 
+    # excel_fil = 'mangelrapport-Bruksklasser-ATM' + mindato + '.xlsx' 
+    excel_fil = 'mangelrapport-Bruksklasser' + mindato + '.xlsx' 
     excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
     
 
-    print( 'Mangelrapport 3.4 - Nytt og enklere loggfil-format')
+    print( 'Mangelrapport 3.5 - Kan hente data fra TESTPROD')
     t0 = datetime.now()
 
     for FILNAVN in loggfiler: 
