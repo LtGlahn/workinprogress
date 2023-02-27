@@ -78,7 +78,7 @@ def lesLoggfil( filnavn:string  ):
     return data
 
 # Leser mangelrapport 
-def lesmangel( filnavn:string ): 
+def lesmangel( filnavn:string, forb=None ): 
     """
     Leser mangelrapport (sql-dump) inn som rader 
 
@@ -86,7 +86,8 @@ def lesmangel( filnavn:string ):
         filnavn : Text string, filnavn med loggfil-data som vist nedenfor
 
     KEYWORDS
-        N/A
+        forb : None (default, dvs går mot NVDB api PROD) eller nvdbapiv3.apiforbindelse() 
+              Angis dersom du ønsker at spørringene skal gå mot et annet miljø enn PRODUKSJON 
     
     RETURNS Liste med dictionary 
 
@@ -167,7 +168,7 @@ def lesmangel( filnavn:string ):
             cc['filnavn']             = filnavn 
 
             # Henter data for start- og sluttpunkt 
-            p1 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
+            p1 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett', forb=forb   )
             if p1: 
                 cc['start_wkt']     = p1['geometri']['wkt']
                 if 'kortform' in p1['vegsystemreferanse']: 
@@ -176,7 +177,7 @@ def lesmangel( filnavn:string ):
             else: 
                 print( 'Fikk ikke gyldige data for geometrispørring startpunkt', str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )   )
 
-            p2 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett'   )
+            p2 = nvdbapiv3.veglenkepunkt( str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] ), retur = 'komplett', forb=forb   )
             if p2: 
                 cc['slutt_wkt']     = p2['geometri']['wkt']
                 if 'kortform' in p2['vegsystemreferanse']:
@@ -189,7 +190,7 @@ def lesmangel( filnavn:string ):
             rutefeil = False
             if cc['sqldump_length'] > minstelengde: 
                 rute = nvdbapiv3.hentrute( str( cc['sqldump_frapos'] ) + '@' + str( cc['sqldump_vlenkid'] ), 
-                                        str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] )  )
+                                        str( cc['sqldump_tilpos'] ) + '@' + str( cc['sqldump_vlenkid'] ), forb=forb  )
 
                 temp_rute = []
                 for segment in rute: 
@@ -211,7 +212,8 @@ def lesmangel( filnavn:string ):
 
                 # Prøver å hente data fra NVDB api segmentert vegnett hvis rute-spørring feiler
                 if not suksess and cc['sqldump_length'] > minstelengde: 
-                    forb = nvdbapiv3.apiforbindelse()
+                    if not forb: 
+                        forb = nvdbapiv3.apiforbindelse()
                     r = forb.les( '/vegnett/veglenkesekvenser/segmentert/' + str( cc['sqldump_vlenkid'] ))
                     if r.ok: 
                         segmentdata = r.json()
@@ -565,7 +567,7 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
 
-    mangeldato = '20221024'
+    mangeldato = '20230227'
 
     loggfiler = [ f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', 
                   f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG' ]
