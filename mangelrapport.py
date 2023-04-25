@@ -567,8 +567,10 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
 
-    mangeldato = '20230227'
+    mangeldato = '20230424'
 
+    datadir = './' 
+    datadir = '/mnt/c/Users/jajens/Downloads/'
     loggfiler = [ f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', 
                   f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG' ]
 
@@ -595,7 +597,7 @@ if __name__ == '__main__':
 
     for FILNAVN in loggfiler: 
 
-        lagmangel( FILNAVN, gpkg_fil, excelwriter, forb=forb )
+        lagmangel( datadir+FILNAVN, gpkg_fil, excelwriter, forb=forb )
 
 
     excelwriter.save()
