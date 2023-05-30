@@ -492,10 +492,16 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter, forb=None ):
         mindf.sort_values( by=['sortering', 'kommune', 'lengde', ],
                 ascending=[     True,        True,      True ], inplace=True )
         
+
+        # ignorerer punkt-verdier (degenererte verdier, strekning kollapser til et punkt)
         mindf['geometry'] = mindf['geometri'].apply( wkt.loads )
-        minGdf = gpd.GeoDataFrame( mindf, geometry='geometry', crs=25833 )
+        minGdf = gpd.GeoDataFrame( mindf[ mindf['geometri'].str.contains('LINESTRING')  ], geometry='geometry', crs=25833 )
         minGdf.drop( columns='geometri', inplace=True )
-        minGdf.to_file( gpkg_fil, layer='debug_' + fanenavn, driver="GPKG")  
+        # Fornuftig rekkefølge, menneskelig lesbare parametre til venstre
+        debugcols = [ 'vegkategori', 'vegnr', 'vref', 'lengde', 'trafikantgruppe',  'kommune','kommunenavn', 'gate',  'fylke', 'typeVeg', 'kortform', 
+                     'type', 'filnavn', 'stedfesting',  'sortering', 'sqldump_vlenkid', 'sqldump_frapos', 'sqldump_tilpos', 'sqldump_vref', 'sqldump_length', 
+                     'sqldump_miljo', 'sqldump_dato', 'sqldump_klokke', 'sqldump_beskrivelse', 'sqldump_datarad', 'sqldump_datauttak', 'sqldump_parametre', 'geometry' ]
+        minGdf[debugcols].to_file( gpkg_fil, layer='debug_' + fanenavn, driver="GPKG")  
 
         mindf.drop( columns=['geometri', 'geometry'], inplace=True )
         # mindf.to_excel( 'mangelrapport.xlsx', sheet_name=fanenavn, index=False  )
@@ -537,12 +543,14 @@ def lagmangel( FILNAVN, gpkg_fil, excelwriter, forb=None ):
         # excelwriter = pd.ExcelWriter( EXCELFIL, engine='xlsxwriter')
 
         # Døper om kolonner så de matcher brukerønskene 
-        mindf.rename( columns={ 'vref' :  'Vegreferanse', 'lengde' : 'Lengde hull', 'kommune' : 'Kommune',  'gate' : 'Gate', 'vegkategori' : 'Vegkategori'   }, inplace=True)
-        col2 = [ 'Vegkategori', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'kommunenavn', 'Gate', 'typeVeg', 'fylke']
+        mindf.rename( columns={ 'vref' :  'Vegreferanse', 'vegnr' : 'Vegnr', 'lengde' : 'Lengde hull', 'kommune' : 'Kommune',  'gate' : 'Gate', 'vegkategori' : 'Vegkategori'   }, inplace=True)
+        col2 = [ 'Vegkategori', 'Vegnr', 'Vegreferanse', 'Fra m', 'Til m', 'Lengde hull', 'Kommune', 'kommunenavn', 'Gate', 'typeVeg', 'fylke']
         mindf[ mindf['Lengde hull'] >= 1][col2].to_excel( excelwriter, sheet_name= fanenavn, index=False )
-        excelwriter.sheets[fanenavn].set_column( 0, 9, 20 )
-        excelwriter.sheets[fanenavn].set_column( 1, 1, 60 )
-        excelwriter.sheets[fanenavn].set_column( 6, 6, 40 )
+        excelwriter.sheets[fanenavn].set_column( 0, 10, 20 )
+        excelwriter.sheets[fanenavn].set_column( 2, 2, 60 )
+        excelwriter.sheets[fanenavn].set_column( 7, 7, 40 )
+
+        # import ipdb; ipdb.set_trace()
 
         # statistikk.to_excel( excelwriter, sheet_name='Statistikk ' + fanenavn, index=True )
         # aggGdf[['vegnr', 'vegkategori',  'fylke', 'kommune', 'kommunenavn', 'lengde', 'trafikantgruppe']].to_excel( excelwriter, sheet_name='Annen visning '+fanenavn, index=False  )
@@ -567,10 +575,11 @@ if __name__ == '__main__':
     ## Last ned ny LOGG-fil fra https://nvdb-datakontroll.atlas.vegvesen.no/ for objekttype 901, 903 og 905 
     ## Legg fila i samme mappe som dette scriptet, og editer inn filnavnet her: 
 
-    mangeldato = '20230424'
+    mangeldato = '20230522'
 
     datadir = './' 
     datadir = '/mnt/c/Users/jajens/Downloads/'
+    # datadir = 'gamlemangler/'
     loggfiler = [ f'checkCoverage 900_{mangeldato}.LOG', f'checkCoverage 901_{mangeldato}.LOG', f'checkCoverage 902_{mangeldato}.LOG', 
                   f'checkCoverage 903_{mangeldato}.LOG', f'checkCoverage 904_{mangeldato}.LOG', f'checkCoverage 905_{mangeldato}.LOG' ]
 
@@ -592,7 +601,7 @@ if __name__ == '__main__':
     excelwriter = pd.ExcelWriter( excel_fil, engine='xlsxwriter')
     
 
-    print( 'Mangelrapport 3.5 - Kan hente data fra TESTPROD')
+    print( 'Mangelrapport 3.6 - Finpuss på kolonnenavn og rekkefølge GPKG debug. Vegnummer-kolonne i excel')
     t0 = datetime.now()
 
     for FILNAVN in loggfiler: 
@@ -600,6 +609,6 @@ if __name__ == '__main__':
         lagmangel( datadir+FILNAVN, gpkg_fil, excelwriter, forb=forb )
 
 
-    excelwriter.save()
+    excelwriter.close()
     tidsbruk = datetime.now() - t0 
-    print( F"tidsbruk alle objekttyper: {tidsbruk.total_seconds()} sekunder")
+    print( F"tidsbruk alle objekttyper: {tidsbruk} ")
